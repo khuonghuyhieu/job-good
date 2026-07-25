@@ -16,7 +16,7 @@
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "vitest run --config vitest.unit.config.ts",
     "test:integration": "node scripts/run-with-env.mjs vitest run --config vitest.integration.config.ts",
-    "test:e2e": "vitest run --config vitest.e2e.config.ts --passWithNoTests",
+    "test:e2e": "node scripts/run-with-env.mjs vitest run --config vitest.e2e.config.ts",
     "db:generate": "pnpm --filter @good-job/database db:generate",
     "db:migrate": "node scripts/run-with-env.mjs pnpm --filter @good-job/database db:migrate",
     "db:migrate:deploy": "node scripts/run-with-env.mjs pnpm --filter @good-job/database db:migrate:deploy",
