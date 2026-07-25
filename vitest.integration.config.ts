@@ -17,6 +17,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    fileParallelism: false,
     include: ['**/*.integration.test.ts'],
     exclude: ['**/node_modules/**', '**/dist/**'],
     hookTimeout: 30_000,

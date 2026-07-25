@@ -28,7 +28,10 @@ describe('foundation migration and seed', () => {
   it('uses the configured deterministic business month exactly once', async () => {
     const businessMonth = process.env['SEED_BUSINESS_MONTH'] ?? '2026-07';
     const budgets = await database.monthlyGivingBudget.findMany({
-      where: { businessMonth },
+      where: {
+        employeeId: '20000000-0000-4000-8000-000000000001',
+        businessMonth,
+      },
     });
 
     expect(budgets).toHaveLength(1);

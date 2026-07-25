@@ -4,6 +4,9 @@ import {
   colleagueSearchQuerySchema,
   colleagueSearchResponseSchema,
   coreValuesResponseSchema,
+  createKudoRequestSchema,
+  createKudoResponseSchema,
+  idempotencyKeySchema,
   walletOverviewResponseSchema,
 } from './recognition.js';
 
@@ -80,5 +83,36 @@ describe('recognition query contracts', () => {
         rewardBalance: 0,
       }).success,
     ).toBe(false);
+  });
+
+  it('defines strict Create Kudo transport and committed response shapes', () => {
+    expect(
+      createKudoRequestSchema.safeParse({
+        receiverId: id,
+        coreValueId: id,
+        points: 30,
+        description: 'Thank you.',
+        senderId: id,
+      }).success,
+    ).toBe(false);
+    expect(
+      createKudoResponseSchema.parse({
+        kudo: {
+          id,
+          senderId: id,
+          receiverId: id,
+          coreValueId: id,
+          points: 30,
+          description: 'Thank you.',
+          status: 'committed',
+          committedAt: '2026-07-25T00:00:00.000Z',
+        },
+        businessMonth: '2026-07',
+        givingBudget: { allowance: 200, used: 30, remaining: 170 },
+        receiverCredit: { amount: 30, balanceAfter: 30 },
+      }).receiverCredit,
+    ).toEqual({ amount: 30, balanceAfter: 30 });
+    expect(idempotencyKeySchema.parse(id)).toBe(id);
+    expect(idempotencyKeySchema.safeParse('not-a-uuid').success).toBe(false);
   });
 });

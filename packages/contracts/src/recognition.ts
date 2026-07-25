@@ -42,6 +42,38 @@ export const walletOverviewResponseSchema = z.object({
   rewardBalance: z.number().int().nonnegative(),
 });
 
+export const createKudoRequestSchema = z
+  .object({
+    receiverId: z.uuid(),
+    points: z.number().int(),
+    coreValueId: z.uuid(),
+    description: z.string(),
+  })
+  .strict();
+
+export const idempotencyKeySchema = z.uuid();
+
+export const committedKudoSchema = z.object({
+  id: z.uuid(),
+  senderId: z.uuid(),
+  receiverId: z.uuid(),
+  coreValueId: z.uuid(),
+  points: z.number().int().min(10).max(50),
+  description: z.string().min(1),
+  status: z.literal('committed'),
+  committedAt: z.string().datetime(),
+});
+
+export const createKudoResponseSchema = z.object({
+  kudo: committedKudoSchema,
+  businessMonth: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/u),
+  givingBudget: givingBudgetSchema,
+  receiverCredit: z.object({
+    amount: z.number().int().min(10).max(50),
+    balanceAfter: z.number().int().nonnegative(),
+  }),
+});
+
 export type ColleagueSearchQuery = z.infer<typeof colleagueSearchQuerySchema>;
 export type ColleagueSearchResponse = z.infer<
   typeof colleagueSearchResponseSchema
@@ -50,3 +82,5 @@ export type CoreValuesResponse = z.infer<typeof coreValuesResponseSchema>;
 export type WalletOverviewResponse = z.infer<
   typeof walletOverviewResponseSchema
 >;
+export type CreateKudoRequest = z.infer<typeof createKudoRequestSchema>;
+export type CreateKudoResponse = z.infer<typeof createKudoResponseSchema>;
