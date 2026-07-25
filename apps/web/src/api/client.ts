@@ -11,6 +11,7 @@ export async function apiRequest<T>(
   try {
     const response = await fetch(new URL(path, config.VITE_API_URL), {
       ...init,
+      credentials: 'include',
       headers: {
         accept: 'application/json',
         ...init?.headers,
@@ -18,7 +19,13 @@ export async function apiRequest<T>(
     });
 
     if (!response.ok) {
+      if (response.status === 401 && typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('good-job:unauthenticated'));
+      }
       throw await toApiClientError(response);
+    }
+    if (response.status === 204) {
+      return undefined as T;
     }
     return (await response.json()) as T;
   } catch (error: unknown) {

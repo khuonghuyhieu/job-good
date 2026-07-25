@@ -20,10 +20,10 @@ export async function toApiClientError(
 
   if (parsed.success) {
     return new ApiClientError(
-      parsed.data.error.message,
+      parsed.data.message,
       response.status,
-      parsed.data.error.code,
-      parsed.data.error.requestId,
+      parsed.data.code,
+      parsed.data.requestId,
     );
   }
 

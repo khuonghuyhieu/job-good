@@ -11,6 +11,12 @@ const validEnvironment = {
   DATABASE_URL: 'postgresql://user:password@localhost:5432/good_job',
   REDIS_URL: 'redis://localhost:6379',
   SESSION_SECRET: 'a-development-secret-with-32-chars',
+  SESSION_COOKIE_NAME: 'gj.sid',
+  SESSION_TTL_SECONDS: '3600',
+  SESSION_COOKIE_SECURE: 'false',
+  SESSION_TRUST_PROXY: 'false',
+  SESSION_REDIS_PREFIX: 'good-job:test-session:',
+  DEMO_ORGANIZATION_SLUG: 'amanotes-demo',
   OBJECT_STORAGE_ENDPOINT: 'http://localhost:9000',
   OBJECT_STORAGE_REGION: 'us-east-1',
   OBJECT_STORAGE_BUCKET: 'good-job-media',
@@ -55,5 +61,39 @@ describe('parseServerConfig', () => {
         SEED_BUSINESS_MONTH: 'July 2026',
       }),
     ).toThrow();
+  });
+
+  it('rejects unsafe session configuration', () => {
+    expect(() =>
+      parseServerConfig({
+        ...validEnvironment,
+        SESSION_COOKIE_NAME: 'invalid cookie name',
+      }),
+    ).toThrow();
+    expect(() =>
+      parseServerConfig({
+        ...validEnvironment,
+        SESSION_TTL_SECONDS: '0',
+      }),
+    ).toThrow();
+  });
+
+  it('requires secure session cookies in production', () => {
+    expect(() =>
+      parseServerConfig({
+        ...validEnvironment,
+        NODE_ENV: 'production',
+        SESSION_COOKIE_SECURE: 'false',
+      }),
+    ).toThrow(/SESSION_COOKIE_SECURE/u);
+
+    expect(
+      parseServerConfig({
+        ...validEnvironment,
+        NODE_ENV: 'production',
+        SESSION_COOKIE_SECURE: 'true',
+        SESSION_TRUST_PROXY: 'true',
+      }).SESSION_TRUST_PROXY,
+    ).toBe(true);
   });
 });

@@ -6,6 +6,12 @@ x-server-environment: &server-environment
   DATABASE_URL: postgresql://${POSTGRES_USER:-good_job}:${POSTGRES_PASSWORD:-local-development-only}@postgres:5432/${POSTGRES_DB:-good_job}?schema=public
   REDIS_URL: redis://redis:6379
   SESSION_SECRET: ${SESSION_SECRET:-replace-with-at-least-32-characters}
+  SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-gj.sid}
+  SESSION_TTL_SECONDS: ${SESSION_TTL_SECONDS:-3600}
+  SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+  SESSION_TRUST_PROXY: ${SESSION_TRUST_PROXY:-false}
+  SESSION_REDIS_PREFIX: ${SESSION_REDIS_PREFIX:-good-job:session:}
+  DEMO_ORGANIZATION_SLUG: ${DEMO_ORGANIZATION_SLUG:-amanotes-demo}
   WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:8080}
   OBJECT_STORAGE_ENDPOINT: http://minio:9000
   OBJECT_STORAGE_REGION: ${OBJECT_STORAGE_REGION:-us-east-1}

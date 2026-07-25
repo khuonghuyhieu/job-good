@@ -1,9 +1,9 @@
 # Good Job
 
-Good Job is an internal recognition, reward, and community platform. Phase 1
-provides its reproducible monorepo, database, queue, object storage, application
-bootstraps, health checks, tests, and CI foundation. Authentication and product
-workflows are intentionally not implemented yet.
+Good Job is an internal recognition, reward, and community platform. The current
+foundation includes a seeded demo login, Redis-backed server sessions, protected
+HTTP and WebSocket access, and a protected current-user Dashboard shell. Product
+workflows after identity are intentionally not implemented yet.
 
 ## Prerequisites
 
@@ -32,6 +32,10 @@ Services:
 | Worker readiness | http://localhost:3001/health/ready |
 | MinIO API        | http://localhost:9000              |
 | MinIO console    | http://localhost:9001              |
+
+Open the Web URL, select one of the active seeded employees, and sign in. Session
+identity and organization scope are resolved by the API from an opaque,
+HttpOnly session cookie; the browser never supplies authoritative tenant data.
 
 Compose applies migrations explicitly, runs the idempotent demo seed, creates the
 private MinIO bucket, and then starts the API, Worker, and Web services.
