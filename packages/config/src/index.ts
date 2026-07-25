@@ -4,6 +4,20 @@ const booleanFromString = z
   .enum(['true', 'false'])
   .transform((value) => value === 'true');
 
+export function isIanaTimeZone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: value }).format();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const ianaTimeZoneSchema = z
+  .string()
+  .min(1)
+  .refine(isIanaTimeZone, 'Must be a valid IANA timezone.');
+
 const serverEnvironmentSchema = z
   .object({
     NODE_ENV: z
@@ -35,7 +49,7 @@ const serverEnvironmentSchema = z
     MEDIA_MAX_VIDEO_BYTES: z.coerce.number().int().positive(),
     MEDIA_MAX_VIDEO_DURATION_SECONDS: z.coerce.number().int().max(180),
     WEBSOCKET_PATH: z.string().startsWith('/'),
-    ORGANIZATION_TIMEZONE: z.string().min(1),
+    ORGANIZATION_TIMEZONE: ianaTimeZoneSchema,
     SEED_BUSINESS_MONTH: z
       .string()
       .regex(/^\d{4}-(0[1-9]|1[0-2])$/u)

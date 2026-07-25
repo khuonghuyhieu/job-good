@@ -1,4 +1,4 @@
-import { type DynamicModule, Module } from '@nestjs/common';
+import { type DynamicModule, Global, Module } from '@nestjs/common';
 import type { ServerConfig } from '@good-job/config';
 
 import { CONFIG } from '../config.js';
@@ -9,6 +9,7 @@ import { OrganizationScopeService } from './organization-scope.service.js';
 import { SessionAuthGuard } from './session-auth.guard.js';
 import { SessionService } from './session/session.service.js';
 
+@Global()
 @Module({
   controllers: [AuthController],
   providers: [

@@ -31,6 +31,11 @@ async function seed(): Promise<void> {
   const timezone = process.env['ORGANIZATION_TIMEZONE'] ?? 'Asia/Ho_Chi_Minh';
   const businessMonth = process.env['SEED_BUSINESS_MONTH'] ?? '2026-07';
 
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format();
+  } catch {
+    throw new Error('ORGANIZATION_TIMEZONE must be a valid IANA timezone.');
+  }
   if (!/^\d{4}-(0[1-9]|1[0-2])$/u.test(businessMonth)) {
     throw new Error('SEED_BUSINESS_MONTH must use YYYY-MM format.');
   }

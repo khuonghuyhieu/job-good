@@ -131,6 +131,7 @@ model CoreValue {
   kudos        Kudo[]
 
   @@unique([organizationId, code])
+  @@index([organizationId, isActive, name, id])
   @@map("core_values")
 }
 

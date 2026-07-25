@@ -63,6 +63,15 @@ describe('parseServerConfig', () => {
     ).toThrow();
   });
 
+  it('rejects a non-IANA organization timezone', () => {
+    expect(() =>
+      parseServerConfig({
+        ...validEnvironment,
+        ORGANIZATION_TIMEZONE: 'local-server-time',
+      }),
+    ).toThrow(/IANA timezone/u);
+  });
+
   it('rejects unsafe session configuration', () => {
     expect(() =>
       parseServerConfig({
