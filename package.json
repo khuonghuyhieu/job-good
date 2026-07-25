@@ -1,0 +1,37 @@
+{
+  "name": "good-job",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.17.0",
+  "engines": {
+    "node": ">=22 <27"
+  },
+  "scripts": {
+    "build": "pnpm -r --if-present build",
+    "clean": "pnpm -r --if-present clean",
+    "dev": "pnpm build && node scripts/run-with-env.mjs pnpm --parallel --filter @good-job/api --filter @good-job/worker --filter @good-job/web dev",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "vitest run --config vitest.unit.config.ts",
+    "test:integration": "node scripts/run-with-env.mjs vitest run --config vitest.integration.config.ts",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts --passWithNoTests",
+    "db:generate": "pnpm --filter @good-job/database db:generate",
+    "db:migrate": "node scripts/run-with-env.mjs pnpm --filter @good-job/database db:migrate",
+    "db:migrate:deploy": "node scripts/run-with-env.mjs pnpm --filter @good-job/database db:migrate:deploy",
+    "db:seed": "node scripts/run-with-env.mjs pnpm --filter @good-job/database db:seed",
+    "db:reset:test": "node scripts/run-with-env.mjs pnpm --filter @good-job/database db:reset:test",
+    "validate:phase1": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:integration && pnpm build && docker compose config --quiet"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/node": "^24.10.1",
+    "eslint": "^9.39.1",
+    "globals": "^16.5.0",
+    "prettier": "^3.7.4",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.48.1",
+    "vitest": "^4.0.15"
+  }
+}

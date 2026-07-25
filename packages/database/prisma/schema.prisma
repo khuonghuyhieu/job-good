@@ -1,0 +1,362 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum EmployeeStatus {
+  active
+  inactive
+}
+
+enum KudoStatus {
+  committed
+}
+
+enum LedgerDirection {
+  credit
+  debit
+}
+
+enum LedgerSourceType {
+  kudo_credit
+  redemption_debit
+  seed_adjustment
+}
+
+enum RedemptionStatus {
+  committed
+}
+
+enum MediaOwnerType {
+  kudo
+  comment
+}
+
+enum MediaType {
+  image
+  video
+}
+
+enum MediaStatus {
+  uploading
+  processing
+  ready
+  failed
+}
+
+enum OutboxStatus {
+  pending
+  published
+  failed
+}
+
+model Organization {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String   @unique
+  timezone    String
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  teams              Team[]
+  employees          Employee[]
+  coreValues         CoreValue[]
+  kudos              Kudo[]
+  rewards            Reward[]
+  outboxEvents       TransactionalOutbox[]
+  idempotencyRecords IdempotencyRecord[]
+
+  @@map("organizations")
+}
+
+model Team {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  employees    Employee[]
+
+  @@unique([organizationId, name])
+  @@map("teams")
+}
+
+model Employee {
+  id              String         @id @default(uuid()) @db.Uuid
+  organizationId  String         @map("organization_id") @db.Uuid
+  teamId          String?        @map("team_id") @db.Uuid
+  email           String
+  normalizedEmail String         @map("normalized_email")
+  displayName     String         @map("display_name")
+  avatarUrl       String?        @map("avatar_url")
+  status          EmployeeStatus @default(active)
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  organization       Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  team               Team?                 @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  sentKudos          Kudo[]                 @relation("KudoSender")
+  receivedKudos      Kudo[]                 @relation("KudoReceiver")
+  reactions          Reaction[]
+  comments           Comment[]
+  givingBudgets      MonthlyGivingBudget[]
+  rewardPointAccount RewardPointAccount?
+  ledgerEntries      RewardPointLedger[]
+  redemptions        RewardRedemption[]
+  notifications      Notification[]
+  idempotencyRecords IdempotencyRecord[]
+
+  @@unique([organizationId, normalizedEmail])
+  @@index([organizationId, status, displayName])
+  @@map("employees")
+}
+
+model CoreValue {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  code           String
+  name           String
+  description    String?
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  kudos        Kudo[]
+
+  @@unique([organizationId, code])
+  @@map("core_values")
+}
+
+model Kudo {
+  id              String     @id @default(uuid()) @db.Uuid
+  organizationId  String     @map("organization_id") @db.Uuid
+  senderId        String     @map("sender_id") @db.Uuid
+  receiverId      String     @map("receiver_id") @db.Uuid
+  coreValueId     String     @map("core_value_id") @db.Uuid
+  clientRequestId String?    @map("client_request_id") @db.Uuid
+  points          Int
+  description     String
+  status          KudoStatus @default(committed)
+  committedAt     DateTime   @default(now()) @map("committed_at")
+  createdAt       DateTime   @default(now()) @map("created_at")
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  sender       Employee           @relation("KudoSender", fields: [senderId], references: [id], onDelete: Restrict)
+  receiver     Employee           @relation("KudoReceiver", fields: [receiverId], references: [id], onDelete: Restrict)
+  coreValue    CoreValue          @relation(fields: [coreValueId], references: [id], onDelete: Restrict)
+  reactions    Reaction[]
+  comments     Comment[]
+  ledgerEntry  RewardPointLedger? @relation("KudoLedger")
+
+  @@unique([organizationId, clientRequestId])
+  @@index([organizationId, committedAt(sort: Desc), id(sort: Desc)])
+  @@index([receiverId, committedAt(sort: Desc)])
+  @@index([senderId, committedAt(sort: Desc)])
+  @@map("kudos")
+}
+
+model Reaction {
+  id         String   @id @default(uuid()) @db.Uuid
+  kudoId     String   @map("kudo_id") @db.Uuid
+  employeeId String   @map("employee_id") @db.Uuid
+  emojiCode  String   @map("emoji_code")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  kudo     Kudo     @relation(fields: [kudoId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([kudoId, employeeId])
+  @@map("reactions")
+}
+
+model Comment {
+  id         String   @id @default(uuid()) @db.Uuid
+  kudoId     String   @map("kudo_id") @db.Uuid
+  employeeId String   @map("employee_id") @db.Uuid
+  body       String
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  kudo     Kudo     @relation(fields: [kudoId], references: [id], onDelete: Restrict)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@index([kudoId, createdAt, id])
+  @@map("comments")
+}
+
+model MediaAttachment {
+  id              String         @id @default(uuid()) @db.Uuid
+  organizationId  String         @map("organization_id") @db.Uuid
+  createdById     String         @map("created_by_id") @db.Uuid
+  ownerType       MediaOwnerType @map("owner_type")
+  ownerId         String?        @map("owner_id") @db.Uuid
+  mediaType       MediaType      @map("media_type")
+  status          MediaStatus    @default(uploading)
+  mimeType        String         @map("mime_type")
+  originalName    String         @map("original_name")
+  sizeBytes       BigInt         @map("size_bytes")
+  objectKey       String         @unique @map("object_key")
+  durationSeconds Int?           @map("duration_seconds")
+  failureCode     String?        @map("failure_code")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  @@index([ownerType, ownerId])
+  @@index([organizationId, createdById])
+  @@map("media_attachments")
+}
+
+model MonthlyGivingBudget {
+  id              String   @id @default(uuid()) @db.Uuid
+  employeeId      String   @map("employee_id") @db.Uuid
+  businessMonth   String   @map("business_month")
+  allowancePoints Int      @default(200) @map("allowance_points")
+  usedPoints      Int      @default(0) @map("used_points")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@unique([employeeId, businessMonth])
+  @@map("monthly_giving_budgets")
+}
+
+model RewardPointAccount {
+  id             String   @id @default(uuid()) @db.Uuid
+  employeeId     String   @unique @map("employee_id") @db.Uuid
+  currentBalance Int      @default(0) @map("current_balance")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@map("reward_point_accounts")
+}
+
+model RewardPointLedger {
+  id                 String            @id @default(uuid()) @db.Uuid
+  employeeId         String            @map("employee_id") @db.Uuid
+  direction          LedgerDirection
+  amount             Int
+  sourceType         LedgerSourceType  @map("source_type")
+  sourceId           String            @map("source_id") @db.Uuid
+  sourceKudoId       String?           @unique @map("source_kudo_id") @db.Uuid
+  sourceRedemptionId String?           @unique @map("source_redemption_id") @db.Uuid
+  balanceAfter       Int               @map("balance_after")
+  description        String?
+  createdAt          DateTime          @default(now()) @map("created_at")
+
+  employee         Employee          @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  sourceKudo       Kudo?             @relation("KudoLedger", fields: [sourceKudoId], references: [id], onDelete: Restrict)
+  sourceRedemption RewardRedemption? @relation("RedemptionLedger", fields: [sourceRedemptionId], references: [id], onDelete: Restrict)
+
+  @@unique([sourceType, sourceId])
+  @@index([employeeId, createdAt(sort: Desc), id(sort: Desc)])
+  @@map("reward_point_ledger")
+}
+
+model Reward {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  code           String
+  name           String
+  description    String?
+  costPoints     Int      @map("cost_points")
+  imageUrl       String?  @map("image_url")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  redemptions  RewardRedemption[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, isActive])
+  @@map("rewards")
+}
+
+model RewardRedemption {
+  id             String           @id @default(uuid()) @db.Uuid
+  employeeId     String           @map("employee_id") @db.Uuid
+  rewardId       String           @map("reward_id") @db.Uuid
+  idempotencyKey String           @map("idempotency_key") @db.Uuid
+  costPoints     Int              @map("cost_points")
+  rewardName     String           @map("reward_name")
+  status         RedemptionStatus @default(committed)
+  committedAt    DateTime         @default(now()) @map("committed_at")
+  createdAt      DateTime         @default(now()) @map("created_at")
+
+  employee    Employee           @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  reward      Reward             @relation(fields: [rewardId], references: [id], onDelete: Restrict)
+  ledgerEntry RewardPointLedger? @relation("RedemptionLedger")
+
+  @@unique([employeeId, idempotencyKey])
+  @@index([employeeId, committedAt(sort: Desc), id(sort: Desc)])
+  @@map("reward_redemptions")
+}
+
+model Notification {
+  id          String    @id @default(uuid()) @db.Uuid
+  recipientId String    @map("recipient_id") @db.Uuid
+  eventId     String    @map("event_id") @db.Uuid
+  type        String
+  payload     Json
+  readAt      DateTime? @map("read_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  recipient Employee @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, recipientId])
+  @@index([recipientId, createdAt(sort: Desc), id(sort: Desc)])
+  @@map("notifications")
+}
+
+model TransactionalOutbox {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  eventType      String       @map("event_type")
+  aggregateType  String       @map("aggregate_type")
+  aggregateId    String       @map("aggregate_id") @db.Uuid
+  payload        Json
+  status         OutboxStatus @default(pending)
+  attempts       Int          @default(0)
+  availableAt    DateTime     @default(now()) @map("available_at")
+  publishedAt    DateTime?    @map("published_at")
+  lastError      String?      @map("last_error")
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@index([status, availableAt, id])
+  @@map("transactional_outbox")
+}
+
+model IdempotencyRecord {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  employeeId     String   @map("employee_id") @db.Uuid
+  operation      String
+  key            String   @db.Uuid
+  requestHash    String   @map("request_hash")
+  resourceType   String?  @map("resource_type")
+  resourceId     String?  @map("resource_id") @db.Uuid
+  responseCode   Int?     @map("response_code")
+  responseBody   Json?    @map("response_body")
+  createdAt      DateTime @default(now()) @map("created_at")
+  expiresAt      DateTime @map("expires_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  employee     Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, employeeId, operation, key])
+  @@index([expiresAt])
+  @@map("idempotency_records")
+}

@@ -1,0 +1,4 @@
+name: good-job
+
+include:
+  - path: ./infra/docker-compose.yml
