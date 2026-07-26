@@ -168,6 +168,7 @@ async function seed(): Promise<void> {
         create: {
           employeeId,
           currentBalance: employeeId === ids.binh ? 30 : 0,
+          ledgerSequence: employeeId === ids.binh ? 1 : 0,
         },
       });
     }
@@ -217,6 +218,7 @@ async function seed(): Promise<void> {
         sourceType: LedgerSourceType.kudo_credit,
         sourceId: ids.kudo,
         sourceKudoId: ids.kudo,
+        sequence: 1,
         balanceAfter: 30,
         description: 'Seeded Kudo credit',
       },

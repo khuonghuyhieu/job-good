@@ -55,12 +55,12 @@ enum OutboxStatus {
 }
 
 model Organization {
-  id          String   @id @default(uuid()) @db.Uuid
-  name        String
-  slug        String   @unique
-  timezone    String
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  slug      String   @unique
+  timezone  String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   teams              Team[]
   employees          Employee[]
@@ -101,8 +101,8 @@ model Employee {
 
   organization       Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   team               Team?                 @relation(fields: [teamId], references: [id], onDelete: SetNull)
-  sentKudos          Kudo[]                 @relation("KudoSender")
-  receivedKudos      Kudo[]                 @relation("KudoReceiver")
+  sentKudos          Kudo[]                @relation("KudoSender")
+  receivedKudos      Kudo[]                @relation("KudoReceiver")
   reactions          Reaction[]
   comments           Comment[]
   givingBudgets      MonthlyGivingBudget[]
@@ -234,6 +234,7 @@ model RewardPointAccount {
   id             String   @id @default(uuid()) @db.Uuid
   employeeId     String   @unique @map("employee_id") @db.Uuid
   currentBalance Int      @default(0) @map("current_balance")
+  ledgerSequence Int      @default(0) @map("ledger_sequence")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
@@ -243,23 +244,25 @@ model RewardPointAccount {
 }
 
 model RewardPointLedger {
-  id                 String            @id @default(uuid()) @db.Uuid
-  employeeId         String            @map("employee_id") @db.Uuid
+  id                 String           @id @default(uuid()) @db.Uuid
+  employeeId         String           @map("employee_id") @db.Uuid
   direction          LedgerDirection
   amount             Int
-  sourceType         LedgerSourceType  @map("source_type")
-  sourceId           String            @map("source_id") @db.Uuid
-  sourceKudoId       String?           @unique @map("source_kudo_id") @db.Uuid
-  sourceRedemptionId String?           @unique @map("source_redemption_id") @db.Uuid
-  balanceAfter       Int               @map("balance_after")
+  sourceType         LedgerSourceType @map("source_type")
+  sourceId           String           @map("source_id") @db.Uuid
+  sourceKudoId       String?          @unique @map("source_kudo_id") @db.Uuid
+  sourceRedemptionId String?          @unique @map("source_redemption_id") @db.Uuid
+  sequence           Int
+  balanceAfter       Int              @map("balance_after")
   description        String?
-  createdAt          DateTime          @default(now()) @map("created_at")
+  createdAt          DateTime         @default(now()) @map("created_at")
 
   employee         Employee          @relation(fields: [employeeId], references: [id], onDelete: Restrict)
   sourceKudo       Kudo?             @relation("KudoLedger", fields: [sourceKudoId], references: [id], onDelete: Restrict)
   sourceRedemption RewardRedemption? @relation("RedemptionLedger", fields: [sourceRedemptionId], references: [id], onDelete: Restrict)
 
   @@unique([sourceType, sourceId])
+  @@unique([employeeId, sequence])
   @@index([employeeId, createdAt(sort: Desc), id(sort: Desc)])
   @@map("reward_point_ledger")
 }

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import type { INestApplication } from '@nestjs/common';
+import type { INestApplication, NestInterceptor } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { parseServerConfig, type ServerConfig } from '@good-job/config';
 import { database, EmployeeStatus } from '@good-job/database';
@@ -56,7 +56,10 @@ function configFor(slug: string): ServerConfig {
   });
 }
 
-export async function createRecognitionTestFixture(label: string): Promise<{
+export async function createRecognitionTestFixture(
+  label: string,
+  options: { interceptors?: NestInterceptor[] } = {},
+): Promise<{
   app: INestApplication;
   ids: RecognitionTestIds;
   login: (employeeId?: string) => Promise<ReturnType<typeof request.agent>>;
@@ -172,6 +175,9 @@ export async function createRecognitionTestFixture(label: string): Promise<{
     .getInstance()
     .set('sessionCookieName', config.SESSION_COOKIE_NAME);
   app.useGlobalFilters(new ApiExceptionFilter());
+  if (options.interceptors?.length) {
+    app.useGlobalInterceptors(...options.interceptors);
+  }
   await app.init();
 
   return {

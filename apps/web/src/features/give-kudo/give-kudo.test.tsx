@@ -18,8 +18,12 @@ import {
   SessionContext,
   type SessionContextValue,
 } from '../../app/session/session-context.js';
-import { GiveKudoComposer } from './GiveKudoComposer.js';
-import { feedQueryKey, walletOverviewQueryKey } from './api.js';
+import {
+  GiveKudoComposer,
+  updateWalletOverviewAfterKudo,
+} from './GiveKudoComposer.js';
+import { feedQueryKey } from '../feed/query-keys.js';
+import { walletOverviewQueryKey } from './api.js';
 
 const senderId = '20000000-0000-4000-8000-000000000001';
 const receiverId = '20000000-0000-4000-8000-000000000002';
@@ -157,6 +161,16 @@ afterEach(() => {
 });
 
 describe('Phase 3 Give Kudo frontend', () => {
+  it('never invents a Reward Balance when Wallet overview is not cached', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    await updateWalletOverviewAfterKudo(queryClient, success);
+
+    expect(queryClient.getQueryData(walletOverviewQueryKey)).toBeUndefined();
+  });
+
   it('shows authoritative budget and eligible selector values', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       return baseResponse(new URL(String(input)).pathname);

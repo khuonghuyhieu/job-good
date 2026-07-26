@@ -1,5 +1,13 @@
 import { z } from 'zod';
 
+import { givingBudgetSchema } from './wallet.js';
+
+export {
+  givingBudgetSchema,
+  walletOverviewResponseSchema,
+  type WalletOverviewResponse,
+} from './wallet.js';
+
 export const colleagueSearchQuerySchema = z
   .object({
     query: z.string().trim().max(100).optional().default(''),
@@ -28,18 +36,6 @@ export const coreValueSchema = z.object({
 
 export const coreValuesResponseSchema = z.object({
   items: z.array(coreValueSchema),
-});
-
-export const givingBudgetSchema = z.object({
-  allowance: z.literal(200),
-  used: z.number().int().min(0).max(200),
-  remaining: z.number().int().min(0).max(200),
-});
-
-export const walletOverviewResponseSchema = z.object({
-  businessMonth: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/u),
-  givingBudget: givingBudgetSchema,
-  rewardBalance: z.number().int().nonnegative(),
 });
 
 export const createKudoRequestSchema = z
@@ -79,8 +75,5 @@ export type ColleagueSearchResponse = z.infer<
   typeof colleagueSearchResponseSchema
 >;
 export type CoreValuesResponse = z.infer<typeof coreValuesResponseSchema>;
-export type WalletOverviewResponse = z.infer<
-  typeof walletOverviewResponseSchema
->;
 export type CreateKudoRequest = z.infer<typeof createKudoRequestSchema>;
 export type CreateKudoResponse = z.infer<typeof createKudoResponseSchema>;

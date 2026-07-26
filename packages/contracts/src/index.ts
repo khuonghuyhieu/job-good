@@ -1,8 +1,11 @@
 import { z } from 'zod';
 
 export * from './errors.js';
+export * from './community.js';
 export * from './identity.js';
 export * from './recognition.js';
+export * from './wallet.js';
+export * from './rewards.js';
 
 export const dependencyHealthSchema = z.object({
   status: z.enum(['up', 'down']),

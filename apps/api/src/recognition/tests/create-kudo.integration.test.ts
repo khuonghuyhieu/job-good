@@ -305,6 +305,7 @@ describe('Phase 3 Group B atomic Create Kudo', () => {
           sourceType: LedgerSourceType.kudo_credit,
           sourceId: committedKudoId,
           sourceKudoId: committedKudoId,
+          sequence: 2,
           balanceAfter: 60,
         },
       }),

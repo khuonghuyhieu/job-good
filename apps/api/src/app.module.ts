@@ -8,13 +8,20 @@ import { DatabaseService } from './database.service.js';
 import { HealthController } from './health.controller.js';
 import { RecognitionModule } from './recognition/recognition.module.js';
 import { RedisService } from './redis.service.js';
+import { RewardsModule } from './rewards/rewards.module.js';
+import { WalletModule } from './wallet/wallet.module.js';
 
 @Module({})
 export class AppModule {
   static register(config: ServerConfig): DynamicModule {
     return {
       module: AppModule,
-      imports: [AuthModule.register(config), RecognitionModule],
+      imports: [
+        AuthModule.register(config),
+        RecognitionModule,
+        WalletModule,
+        RewardsModule,
+      ],
       controllers: [HealthController],
       providers: [
         { provide: CONFIG, useValue: config },

@@ -31,32 +31,64 @@ export class GetGivingBudgetQuery {
       principal.organization.timezone,
       instant,
     );
+    await Promise.all([
+      database.$executeRaw`
+        INSERT INTO "monthly_giving_budgets" (
+          "id",
+          "employee_id",
+          "business_month",
+          "allowance_points",
+          "used_points",
+          "created_at",
+          "updated_at"
+        )
+        VALUES (
+          gen_random_uuid(),
+          ${principal.employeeId}::uuid,
+          ${businessMonth},
+          200,
+          0,
+          CURRENT_TIMESTAMP,
+          CURRENT_TIMESTAMP
+        )
+        ON CONFLICT ("employee_id", "business_month") DO NOTHING
+      `,
+      database.$executeRaw`
+        INSERT INTO "reward_point_accounts" (
+          "id",
+          "employee_id",
+          "current_balance",
+          "created_at",
+          "updated_at"
+        )
+        VALUES (
+          gen_random_uuid(),
+          ${principal.employeeId}::uuid,
+          0,
+          CURRENT_TIMESTAMP,
+          CURRENT_TIMESTAMP
+        )
+        ON CONFLICT ("employee_id") DO NOTHING
+      `,
+    ]);
     const [budget, rewardAccount] = await Promise.all([
-      database.monthlyGivingBudget.upsert({
+      database.monthlyGivingBudget.findUniqueOrThrow({
         where: {
           employeeId_businessMonth: {
             employeeId: principal.employeeId,
             businessMonth,
           },
         },
-        update: {},
-        create: {
-          employeeId: principal.employeeId,
-          businessMonth,
-          allowancePoints: 200,
-          usedPoints: 0,
-        },
       }),
-      database.rewardPointAccount.findUnique({
+      database.rewardPointAccount.findUniqueOrThrow({
         where: { employeeId: principal.employeeId },
-        select: { currentBalance: true },
       }),
     ]);
 
     return toWalletOverview(
       businessMonth,
       budget,
-      rewardAccount?.currentBalance ?? 0,
+      rewardAccount.currentBalance,
     );
   }
 }

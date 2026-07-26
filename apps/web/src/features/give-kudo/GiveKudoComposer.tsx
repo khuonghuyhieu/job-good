@@ -1,10 +1,16 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from '@tanstack/react-query';
 import { useRef, useState, type FormEvent } from 'react';
 import type {
   ColleagueSearchResponse,
   CoreValuesResponse,
   CreateKudoRequest,
   CreateKudoResponse,
+  WalletOverviewResponse,
 } from '@good-job/contracts';
 
 import { ApiClientError } from '../../api/error-adapter.js';
@@ -13,12 +19,12 @@ import {
   colleaguesQueryKey,
   coreValuesQueryKey,
   createKudo,
-  feedQueryKey,
   getCoreValues,
   getWalletOverview,
   searchColleagues,
   walletOverviewQueryKey,
 } from './api.js';
+import { feedQueryKey } from '../feed/query-keys.js';
 import { GivingBudgetCard } from './GivingBudgetCard.js';
 
 type Draft = {
@@ -34,6 +40,24 @@ type CommandAttempt = {
   key: string;
   request: CreateKudoRequest;
 };
+
+export async function updateWalletOverviewAfterKudo(
+  queryClient: QueryClient,
+  response: CreateKudoResponse,
+): Promise<void> {
+  const previous = queryClient.getQueryData<WalletOverviewResponse>(
+    walletOverviewQueryKey,
+  );
+  if (!previous) {
+    await queryClient.invalidateQueries({ queryKey: walletOverviewQueryKey });
+    return;
+  }
+  queryClient.setQueryData<WalletOverviewResponse>(walletOverviewQueryKey, {
+    businessMonth: response.businessMonth,
+    givingBudget: response.givingBudget,
+    rewardBalance: previous.rewardBalance,
+  });
+}
 
 const emptyDraft: Draft = {
   receiverId: '',
@@ -159,22 +183,7 @@ export function GiveKudoComposer() {
       setErrors({});
       setRecoveryCommand(null);
       setIdempotencyKey(newIdempotencyKey());
-      queryClient.setQueryData(
-        walletOverviewQueryKey,
-        (
-          previous:
-            | {
-                businessMonth: string;
-                givingBudget: CreateKudoResponse['givingBudget'];
-                rewardBalance: number;
-              }
-            | undefined,
-        ) => ({
-          businessMonth: response.businessMonth,
-          givingBudget: response.givingBudget,
-          rewardBalance: previous?.rewardBalance ?? 0,
-        }),
-      );
+      await updateWalletOverviewAfterKudo(queryClient, response);
       await queryClient.invalidateQueries({ queryKey: feedQueryKey });
     },
     onError: async (error, attempt) => {

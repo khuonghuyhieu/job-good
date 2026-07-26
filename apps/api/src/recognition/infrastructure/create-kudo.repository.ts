@@ -32,6 +32,7 @@ type LockedBudget = {
 type LockedRewardAccount = {
   id: string;
   currentBalance: number;
+  ledgerSequence: number;
 };
 
 type LockedSelectableRow = {
@@ -248,7 +249,8 @@ export class CreateKudoRepository {
     const [account] = await transaction.$queryRaw<LockedRewardAccount[]>`
       SELECT
         "id",
-        "current_balance" AS "currentBalance"
+        "current_balance" AS "currentBalance",
+        "ledger_sequence" AS "ledgerSequence"
       FROM "reward_point_accounts"
       WHERE "employee_id" = ${receiver.id}::uuid
       FOR UPDATE
@@ -257,9 +259,13 @@ export class CreateKudoRepository {
       throw new Error('The receiver Reward Point account could not be locked.');
     }
     const balanceAfter = account.currentBalance + input.points;
+    const ledgerSequence = account.ledgerSequence + 1;
     await transaction.rewardPointAccount.update({
       where: { id: account.id },
-      data: { currentBalance: balanceAfter },
+      data: {
+        currentBalance: balanceAfter,
+        ledgerSequence,
+      },
     });
     await transaction.rewardPointLedger.create({
       data: {
@@ -269,6 +275,7 @@ export class CreateKudoRepository {
         sourceType: LedgerSourceType.kudo_credit,
         sourceId: kudo.id,
         sourceKudoId: kudo.id,
+        sequence: ledgerSequence,
         balanceAfter,
         description: `Kudo credit from ${principal.employeeId}`,
       },

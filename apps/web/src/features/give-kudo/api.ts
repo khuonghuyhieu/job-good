@@ -2,28 +2,18 @@ import {
   colleagueSearchResponseSchema,
   coreValuesResponseSchema,
   createKudoResponseSchema,
-  walletOverviewResponseSchema,
   type ColleagueSearchResponse,
   type CoreValuesResponse,
   type CreateKudoRequest,
   type CreateKudoResponse,
-  type WalletOverviewResponse,
 } from '@good-job/contracts';
 
 import { apiRequest } from '../../api/client.js';
 
-export const walletOverviewQueryKey = ['wallet', 'overview'] as const;
+export { getWalletOverview, walletOverviewQueryKey } from '../wallet/api.js';
 export const coreValuesQueryKey = ['recognition', 'core-values'] as const;
-export const feedQueryKey = ['feed'] as const;
-
 export function colleaguesQueryKey(query: string) {
   return ['recognition', 'colleagues', query] as const;
-}
-
-export async function getWalletOverview(): Promise<WalletOverviewResponse> {
-  return walletOverviewResponseSchema.parse(
-    await apiRequest('/wallet/overview'),
-  );
 }
 
 export async function getCoreValues(): Promise<CoreValuesResponse> {

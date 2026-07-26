@@ -1,5 +1,5 @@
 import { useMutation } from '@tanstack/react-query';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Link, Outlet, useNavigate } from 'react-router-dom';
 
 import { useSession } from '../app/session/session-context.js';
 import { logout } from '../features/auth/api.js';
@@ -28,6 +28,8 @@ export function AppShell() {
           <span>Good Job</span>
         </a>
         <div className="current-user">
+          <Link to="/wallet">Wallet</Link>
+          <Link to="/rewards">Rewards</Link>
           <span>
             {session.currentUser.user.displayName} ·{' '}
             {session.currentUser.organization.name}
