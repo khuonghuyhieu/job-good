@@ -40,6 +40,7 @@ const serverEnvironmentSchema = z
     SESSION_REDIS_PREFIX: z.string().min(1).default('good-job:session:'),
     DEMO_ORGANIZATION_SLUG: z.string().min(1).default('amanotes-demo'),
     OBJECT_STORAGE_ENDPOINT: z.url(),
+    OBJECT_STORAGE_PUBLIC_ENDPOINT: z.url().default('http://localhost:9000'),
     OBJECT_STORAGE_REGION: z.string().min(1),
     OBJECT_STORAGE_BUCKET: z.string().min(3),
     OBJECT_STORAGE_ACCESS_KEY: z.string().min(1),
@@ -47,7 +48,28 @@ const serverEnvironmentSchema = z
     OBJECT_STORAGE_FORCE_PATH_STYLE: booleanFromString.default(true),
     MEDIA_MAX_IMAGE_BYTES: z.coerce.number().int().positive(),
     MEDIA_MAX_VIDEO_BYTES: z.coerce.number().int().positive(),
-    MEDIA_MAX_VIDEO_DURATION_SECONDS: z.coerce.number().int().max(180),
+    MEDIA_MAX_VIDEO_DURATION_SECONDS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .max(180),
+    MEDIA_UPLOAD_URL_TTL_SECONDS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .max(3600)
+      .default(900),
+    MEDIA_WORKER_CONCURRENCY: z.coerce
+      .number()
+      .int()
+      .positive()
+      .max(8)
+      .default(2),
+    MEDIA_WORKER_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(3),
+    MEDIA_WORKER_BACKOFF_MS: z.coerce.number().int().positive().default(1000),
+    OUTBOX_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(250),
+    OUTBOX_CLAIM_LEASE_MS: z.coerce.number().int().positive().default(30_000),
+    OUTBOX_RETRY_BACKOFF_MS: z.coerce.number().int().positive().default(1000),
     WEBSOCKET_PATH: z.string().startsWith('/'),
     ORGANIZATION_TIMEZONE: ianaTimeZoneSchema,
     SEED_BUSINESS_MONTH: z

@@ -105,12 +105,80 @@ describe('Phase 6 redemption rollback', () => {
           where: { employeeId: ids.senderId, operation: 'redeem_reward' },
         }),
       ).toBe(0);
+      expect(
+        await database.transactionalOutbox.count({
+          where: {
+            organizationId: ids.organizationId,
+            eventType: 'reward.redeemed',
+          },
+        }),
+      ).toBe(0);
     } finally {
       await database.$executeRawUnsafe(
         `DROP TRIGGER IF EXISTS phase_6_debit_failure ON reward_point_ledger`,
       );
       await database.$executeRawUnsafe(
         `DROP FUNCTION IF EXISTS reject_phase_6_debit()`,
+      );
+    }
+  });
+
+  it('rolls back redemption, debit and key when the outbox insert fails', async () => {
+    await database.$executeRawUnsafe(`
+      CREATE OR REPLACE FUNCTION reject_phase_6_redemption_outbox()
+      RETURNS trigger AS $$
+      BEGIN
+        IF NEW.organization_id = '${ids.organizationId}'::uuid
+          AND NEW.event_type = 'reward.redeemed' THEN
+          RAISE EXCEPTION 'forced redemption outbox failure';
+        END IF;
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql
+    `);
+    await database.$executeRawUnsafe(`
+      CREATE TRIGGER phase_6_redemption_outbox_failure
+      BEFORE INSERT ON transactional_outbox
+      FOR EACH ROW EXECUTE FUNCTION reject_phase_6_redemption_outbox()
+    `);
+    try {
+      const response = await (
+        await login()
+      )
+        .post(`/rewards/${rewardId}/redeem`)
+        .set('Idempotency-Key', randomUUID());
+      expect(response.status).toBe(500);
+      const account = await database.rewardPointAccount.findUniqueOrThrow({
+        where: { employeeId: ids.senderId },
+      });
+      expect(account).toMatchObject({ currentBalance: 20, ledgerSequence: 1 });
+      expect(
+        await database.rewardRedemption.count({
+          where: { employeeId: ids.senderId },
+        }),
+      ).toBe(0);
+      expect(
+        await database.rewardPointLedger.count({
+          where: {
+            employeeId: ids.senderId,
+            sourceType: LedgerSourceType.redemption_debit,
+          },
+        }),
+      ).toBe(0);
+      expect(
+        await database.transactionalOutbox.count({
+          where: {
+            organizationId: ids.organizationId,
+            eventType: 'reward.redeemed',
+          },
+        }),
+      ).toBe(0);
+    } finally {
+      await database.$executeRawUnsafe(
+        `DROP TRIGGER IF EXISTS phase_6_redemption_outbox_failure ON transactional_outbox`,
+      );
+      await database.$executeRawUnsafe(
+        `DROP FUNCTION IF EXISTS reject_phase_6_redemption_outbox()`,
       );
     }
   });

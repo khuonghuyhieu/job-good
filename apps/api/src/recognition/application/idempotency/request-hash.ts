@@ -8,6 +8,7 @@ export function hashCreateKudoRequest(input: CreateKudoRequest): string {
     points: input.points,
     coreValueId: input.coreValueId,
     description: input.description.trim(),
+    attachmentIds: [...(input.attachmentIds ?? [])].sort(),
   });
   return createHash('sha256').update(canonicalPayload).digest('hex');
 }

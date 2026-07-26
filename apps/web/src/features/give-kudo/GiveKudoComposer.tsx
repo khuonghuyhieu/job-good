@@ -26,12 +26,14 @@ import {
 } from './api.js';
 import { feedQueryKey } from '../feed/query-keys.js';
 import { GivingBudgetCard } from './GivingBudgetCard.js';
+import { AttachmentPicker } from '../media/AttachmentPicker.js';
 
 type Draft = {
   receiverId: string;
   coreValueId: string;
   points: string;
   description: string;
+  attachmentIds: string[];
 };
 
 type DraftErrors = Partial<Record<keyof Draft, string>>;
@@ -64,6 +66,7 @@ const emptyDraft: Draft = {
   coreValueId: '',
   points: '10',
   description: '',
+  attachmentIds: [],
 };
 
 function newIdempotencyKey(): string {
@@ -100,6 +103,7 @@ function validateDraft(
       coreValueId: draft.coreValueId,
       points,
       description: draft.description.trim(),
+      attachmentIds: draft.attachmentIds,
     },
   };
 }
@@ -446,6 +450,14 @@ export function GiveKudoComposer() {
               {errors.description}
             </p>
           )}
+
+          <AttachmentPicker
+            attachmentIds={draft.attachmentIds}
+            disabled={fieldsLocked}
+            onChange={(attachmentIds) =>
+              updateDraft('attachmentIds', attachmentIds)
+            }
+          />
 
           <button
             type="submit"

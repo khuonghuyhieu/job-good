@@ -39,6 +39,12 @@ type LockedSelectableRow = {
   id: string;
 };
 
+type LockedAttachment = {
+  id: string;
+  mediaType: 'image' | 'video';
+  status: 'processing' | 'ready';
+};
+
 @Injectable()
 export class CreateKudoRepository {
   constructor(
@@ -192,6 +198,37 @@ export class CreateKudoRepository {
       points: input.points,
       description: input.description,
     });
+    const attachmentIds = [...new Set(input.attachmentIds ?? [])].sort();
+    if (attachmentIds.length !== (input.attachmentIds ?? []).length) {
+      throw new CreateKudoRuleError(
+        400,
+        'VALIDATION_ERROR',
+        'The Kudo request contains duplicate attachments.',
+        { attachmentIds: 'Attachment IDs must be unique.' },
+      );
+    }
+    const attachments: LockedAttachment[] = [];
+    for (const attachmentId of attachmentIds) {
+      const [attachment] = await transaction.$queryRaw<LockedAttachment[]>`
+        SELECT "id", "media_type" AS "mediaType", "status"
+        FROM "media_attachments"
+        WHERE "id" = ${attachmentId}::uuid
+          AND "organization_id" = ${principal.organizationId}::uuid
+          AND "created_by_id" = ${principal.employeeId}::uuid
+          AND "owner_type" = 'kudo'
+          AND "owner_id" IS NULL
+          AND "status" IN ('processing', 'ready')
+        FOR UPDATE
+      `;
+      if (!attachment) {
+        throw new CreateKudoRuleError(
+          409,
+          'MEDIA_UNAVAILABLE',
+          'A selected media attachment is unavailable.',
+        );
+      }
+      attachments.push(attachment);
+    }
     if (budget.usedPoints + input.points > budget.allowancePoints) {
       throw new CreateKudoRuleError(
         409,
@@ -224,6 +261,12 @@ export class CreateKudoRepository {
         committedAt,
       },
     });
+    if (attachmentIds.length) {
+      await transaction.mediaAttachment.updateMany({
+        where: { id: { in: attachmentIds }, ownerId: null },
+        data: { ownerId: kudo.id },
+      });
+    }
     const updatedBudget = await transaction.monthlyGivingBudget.update({
       where: { id: budget.id },
       data: { usedPoints: { increment: input.points } },
@@ -326,6 +369,11 @@ export class CreateKudoRepository {
         description: kudo.description,
         status: kudo.status,
         committedAt: kudo.committedAt.toISOString(),
+        attachments: attachments.map((attachment) => ({
+          id: attachment.id,
+          mediaType: attachment.mediaType,
+          status: attachment.status,
+        })),
       },
       businessMonth,
       givingBudget: {

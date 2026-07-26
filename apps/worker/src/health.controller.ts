@@ -7,11 +7,16 @@ import {
 import type { HealthResponse } from '@good-job/contracts';
 
 import { QueueHealthService } from './queue-health.service.js';
+import { MediaWorkerService } from './media/media-worker.service.js';
+import { OutboxPublisherService } from './outbox/outbox-publisher.service.js';
 
 @Controller('health')
 export class HealthController {
   constructor(
     @Inject(QueueHealthService) private readonly queue: QueueHealthService,
+    @Inject(MediaWorkerService) private readonly media: MediaWorkerService,
+    @Inject(OutboxPublisherService)
+    private readonly outbox: OutboxPublisherService,
   ) {}
 
   @Get('live')
@@ -26,26 +31,46 @@ export class HealthController {
   @Get('ready')
   async ready(): Promise<HealthResponse> {
     const startedAt = performance.now();
-    try {
-      await this.queue.ping();
+    const [queue, media, outbox] = await Promise.allSettled([
+      this.queue.ping(),
+      this.media.ping(),
+      this.outbox.ping(),
+    ]);
+    const dependencies = {
+      queue: {
+        status:
+          queue.status === 'fulfilled' ? ('up' as const) : ('down' as const),
+        latencyMs: performance.now() - startedAt,
+      },
+      media: {
+        status:
+          media.status === 'fulfilled' ? ('up' as const) : ('down' as const),
+        latencyMs: performance.now() - startedAt,
+      },
+      outbox: {
+        status:
+          outbox.status === 'fulfilled' ? ('up' as const) : ('down' as const),
+        latencyMs: performance.now() - startedAt,
+      },
+    };
+    if (
+      queue.status === 'fulfilled' &&
+      media.status === 'fulfilled' &&
+      outbox.status === 'fulfilled'
+    ) {
       return {
         service: 'worker',
         status: 'ok',
         timestamp: new Date().toISOString(),
-        dependencies: {
-          queue: { status: 'up', latencyMs: performance.now() - startedAt },
-        },
+        dependencies,
       };
-    } catch {
-      const response: HealthResponse = {
-        service: 'worker',
-        status: 'not_ready',
-        timestamp: new Date().toISOString(),
-        dependencies: {
-          queue: { status: 'down', latencyMs: performance.now() - startedAt },
-        },
-      };
-      throw new ServiceUnavailableException(response);
     }
+    const response: HealthResponse = {
+      service: 'worker',
+      status: 'not_ready',
+      timestamp: new Date().toISOString(),
+      dependencies,
+    };
+    throw new ServiceUnavailableException(response);
   }
 }

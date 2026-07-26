@@ -53,9 +53,31 @@ export class FeedRepository {
     });
     const hasNextPage = rows.length > query.limit;
     const pageRows = hasNextPage ? rows.slice(0, query.limit) : rows;
+    const attachments = await database.mediaAttachment.findMany({
+      where: {
+        organizationId: principal.organizationId,
+        ownerType: 'kudo',
+        ownerId: { in: pageRows.map((row) => row.id) },
+      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      select: { id: true, ownerId: true, mediaType: true, status: true },
+    });
+    const attachmentsByKudo = new Map<string, typeof attachments>();
+    for (const attachment of attachments) {
+      const ownerId = attachment.ownerId!;
+      attachmentsByKudo.set(ownerId, [
+        ...(attachmentsByKudo.get(ownerId) ?? []),
+        attachment,
+      ]);
+    }
     const last = pageRows.at(-1);
     return {
-      items: pageRows.map((row) => mapFeedKudo(row, principal.employeeId)),
+      items: pageRows.map((row) =>
+        mapFeedKudo(
+          { ...row, attachments: attachmentsByKudo.get(row.id) ?? [] },
+          principal.employeeId,
+        ),
+      ),
       nextCursor:
         hasNextPage && last
           ? encodeFeedCursor({ committedAt: last.committedAt, id: last.id })
@@ -67,25 +89,36 @@ export class FeedRepository {
     principal: AuthenticatedPrincipal,
     kudoId: string,
   ): Promise<KudoDetailResponse | null> {
-    const row = await database.kudo.findFirst({
-      where: {
-        id: kudoId,
-        organizationId: principal.organizationId,
-        status: KudoStatus.committed,
-      },
-      include: {
-        ...feedInclude,
-        comments: {
-          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-          include: { employee: { select: employeeSelect } },
+    const [row, attachments] = await Promise.all([
+      database.kudo.findFirst({
+        where: {
+          id: kudoId,
+          organizationId: principal.organizationId,
+          status: KudoStatus.committed,
         },
-      },
-    });
+        include: {
+          ...feedInclude,
+          comments: {
+            orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+            include: { employee: { select: employeeSelect } },
+          },
+        },
+      }),
+      database.mediaAttachment.findMany({
+        where: {
+          organizationId: principal.organizationId,
+          ownerType: 'kudo',
+          ownerId: kudoId,
+        },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        select: { id: true, mediaType: true, status: true },
+      }),
+    ]);
     if (!row) {
       return null;
     }
     return {
-      ...mapFeedKudo(row, principal.employeeId),
+      ...mapFeedKudo({ ...row, attachments }, principal.employeeId),
       comments: row.comments.map((comment) =>
         mapComment(comment, principal.employeeId),
       ),

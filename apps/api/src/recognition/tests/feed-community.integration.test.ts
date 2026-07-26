@@ -25,10 +25,7 @@ describe('Phase 4 Feed and community', () => {
     await app.close();
   });
 
-  async function createKudo(
-    committedAt: Date,
-    id: string = randomUUID(),
-  ) {
+  async function createKudo(committedAt: Date, id: string = randomUUID()) {
     createdKudoIds.push(id);
     return database.kudo.create({
       data: {
@@ -162,6 +159,31 @@ describe('Phase 4 Feed and community', () => {
     expect(['heart', 'fire']).toContain(rows[0]?.emojiCode);
   });
 
+  it('rolls back a reaction when its outbox insert fails', async () => {
+    const kudo = await createKudo(new Date('2026-07-28T12:00:00.000Z'));
+    await installCommunityOutboxFailure('reaction');
+    try {
+      const response = await (
+        await login()
+      )
+        .put(`/kudos/${kudo.id}/reaction`)
+        .send({ emojiCode: 'heart' });
+      expect(response.status).toBe(500);
+      expect(
+        await database.reaction.count({
+          where: { kudoId: kudo.id, employeeId: ids.senderId },
+        }),
+      ).toBe(0);
+      expect(
+        await database.transactionalOutbox.count({
+          where: { aggregateType: 'reaction', aggregateId: kudo.id },
+        }),
+      ).toBe(0);
+    } finally {
+      await removeCommunityOutboxFailure();
+    }
+  });
+
   it('rejects empty comments and creates one idempotent trimmed comment', async () => {
     const kudo = await createKudo(new Date('2026-07-29T10:00:00.000Z'));
     const agent = await login();
@@ -206,6 +228,41 @@ describe('Phase 4 Feed and community', () => {
     expect(await database.comment.count({ where: { kudoId: kudo.id } })).toBe(
       1,
     );
+  });
+
+  it('rolls back a comment and idempotency key when its outbox insert fails', async () => {
+    const kudo = await createKudo(new Date('2026-07-30T11:00:00.000Z'));
+    const idempotencyKey = randomUUID();
+    await installCommunityOutboxFailure('comment');
+    try {
+      const response = await (
+        await login()
+      )
+        .post(`/kudos/${kudo.id}/comments`)
+        .set('Idempotency-Key', idempotencyKey)
+        .send({ body: 'This comment must roll back.' });
+      expect(response.status).toBe(500);
+      expect(await database.comment.count({ where: { kudoId: kudo.id } })).toBe(
+        0,
+      );
+      expect(
+        await database.idempotencyRecord.count({
+          where: {
+            organizationId: ids.organizationId,
+            employeeId: ids.senderId,
+            operation: 'create_comment',
+            key: idempotencyKey,
+          },
+        }),
+      ).toBe(0);
+      expect(
+        await database.transactionalOutbox.count({
+          where: { aggregateType: 'comment', aggregateId: kudo.id },
+        }),
+      ).toBe(0);
+    } finally {
+      await removeCommunityOutboxFailure();
+    }
   });
 
   it('orders comments deterministically and permits only author deletion', async () => {
@@ -277,4 +334,38 @@ describe('Phase 4 Feed and community', () => {
       await database.comment.count({ where: { kudoId: foreignKudo.id } }),
     ).toBe(0);
   });
+
+  async function installCommunityOutboxFailure(
+    aggregateType: 'reaction' | 'comment',
+  ): Promise<void> {
+    await database.$executeRawUnsafe(
+      `DROP TRIGGER IF EXISTS phase_8_community_outbox_failure ON transactional_outbox`,
+    );
+    await database.$executeRawUnsafe(`
+      CREATE OR REPLACE FUNCTION reject_phase_8_community_outbox()
+      RETURNS trigger AS $$
+      BEGIN
+        IF NEW.organization_id = '${ids.organizationId}'::uuid
+          AND NEW.aggregate_type = '${aggregateType}' THEN
+          RAISE EXCEPTION 'forced community outbox failure';
+        END IF;
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql
+    `);
+    await database.$executeRawUnsafe(`
+      CREATE TRIGGER phase_8_community_outbox_failure
+      BEFORE INSERT ON transactional_outbox
+      FOR EACH ROW EXECUTE FUNCTION reject_phase_8_community_outbox()
+    `);
+  }
+
+  async function removeCommunityOutboxFailure(): Promise<void> {
+    await database.$executeRawUnsafe(
+      `DROP TRIGGER IF EXISTS phase_8_community_outbox_failure ON transactional_outbox`,
+    );
+    await database.$executeRawUnsafe(
+      `DROP FUNCTION IF EXISTS reject_phase_8_community_outbox()`,
+    );
+  }
 });

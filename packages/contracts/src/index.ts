@@ -6,6 +6,9 @@ export * from './identity.js';
 export * from './recognition.js';
 export * from './wallet.js';
 export * from './rewards.js';
+export * from './media.js';
+export * from './notifications.js';
+export * from './realtime.js';
 
 export const dependencyHealthSchema = z.object({
   status: z.enum(['up', 'down']),

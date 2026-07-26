@@ -48,6 +48,13 @@ export const feedKudoSchema = z.object({
   committedAt: z.string().datetime(),
   reactions: reactionStateSchema,
   commentCount: z.number().int().nonnegative(),
+  attachments: z.array(
+    z.object({
+      id: z.uuid(),
+      mediaType: z.enum(['image', 'video']),
+      status: z.enum(['uploading', 'processing', 'ready', 'failed']),
+    }),
+  ),
 });
 
 export const feedResponseSchema = z.object({

@@ -7,6 +7,7 @@ import { database, EmployeeStatus } from '@good-job/database';
 import request from 'supertest';
 
 import { AppModule } from '../../app.module.js';
+import { AuthenticatedSocketService } from '../../auth/authenticated-socket.service.js';
 import { SessionService } from '../../auth/session/session.service.js';
 import { ApiExceptionFilter } from '../../http/api-exception.filter.js';
 import { requestIdMiddleware } from '../../request-id.middleware.js';
@@ -44,8 +45,10 @@ function configFor(slug: string): ServerConfig {
     OBJECT_STORAGE_ENDPOINT: 'http://localhost:9000',
     OBJECT_STORAGE_REGION: 'us-east-1',
     OBJECT_STORAGE_BUCKET: 'good-job-media',
-    OBJECT_STORAGE_ACCESS_KEY: 'test',
-    OBJECT_STORAGE_SECRET_KEY: 'test-secret',
+    OBJECT_STORAGE_ACCESS_KEY:
+      process.env['OBJECT_STORAGE_ACCESS_KEY'] ?? 'good-job-local',
+    OBJECT_STORAGE_SECRET_KEY:
+      process.env['OBJECT_STORAGE_SECRET_KEY'] ?? 'local-development-only',
     OBJECT_STORAGE_FORCE_PATH_STYLE: 'true',
     MEDIA_MAX_IMAGE_BYTES: '10485760',
     MEDIA_MAX_VIDEO_BYTES: '209715200',
@@ -58,9 +61,10 @@ function configFor(slug: string): ServerConfig {
 
 export async function createRecognitionTestFixture(
   label: string,
-  options: { interceptors?: NestInterceptor[] } = {},
+  options: { interceptors?: NestInterceptor[]; realtime?: boolean } = {},
 ): Promise<{
   app: INestApplication;
+  config: ServerConfig;
   ids: RecognitionTestIds;
   login: (employeeId?: string) => Promise<ReturnType<typeof request.agent>>;
 }> {
@@ -178,10 +182,16 @@ export async function createRecognitionTestFixture(
   if (options.interceptors?.length) {
     app.useGlobalInterceptors(...options.interceptors);
   }
-  await app.init();
+  if (options.realtime) {
+    app.get(AuthenticatedSocketService).attach(app.getHttpServer());
+    await app.listen(0, '127.0.0.1');
+  } else {
+    await app.init();
+  }
 
   return {
     app,
+    config,
     ids,
     login: async (employeeId = ids.senderId) => {
       const agent = request.agent(app.getHttpServer());

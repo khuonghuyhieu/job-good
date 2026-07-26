@@ -106,6 +106,7 @@ describe('recognition query contracts', () => {
           description: 'Thank you.',
           status: 'committed',
           committedAt: '2026-07-25T00:00:00.000Z',
+          attachments: [],
         },
         businessMonth: '2026-07',
         givingBudget: { allowance: 200, used: 30, remaining: 170 },

@@ -69,6 +69,7 @@ model Organization {
   rewards            Reward[]
   outboxEvents       TransactionalOutbox[]
   idempotencyRecords IdempotencyRecord[]
+  mediaAttachments   MediaAttachment[]
 
   @@map("organizations")
 }
@@ -108,6 +109,7 @@ model Employee {
   givingBudgets      MonthlyGivingBudget[]
   rewardPointAccount RewardPointAccount?
   ledgerEntries      RewardPointLedger[]
+  mediaAttachments   MediaAttachment[]
   redemptions        RewardRedemption[]
   notifications      Notification[]
   idempotencyRecords IdempotencyRecord[]
@@ -205,10 +207,13 @@ model MediaAttachment {
   originalName    String         @map("original_name")
   sizeBytes       BigInt         @map("size_bytes")
   objectKey       String         @unique @map("object_key")
-  durationSeconds Int?           @map("duration_seconds")
+  durationSeconds Float?         @map("duration_seconds")
   failureCode     String?        @map("failure_code")
   createdAt       DateTime       @default(now()) @map("created_at")
   updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdBy    Employee     @relation(fields: [createdById], references: [id], onDelete: Restrict)
 
   @@index([ownerType, ownerId])
   @@index([organizationId, createdById])

@@ -68,6 +68,7 @@ const success = {
     description: 'A thoughtful contribution.',
     status: 'committed' as const,
     committedAt: '2026-07-25T10:00:00.000Z',
+    attachments: [],
   },
   businessMonth: '2026-07',
   givingBudget: { allowance: 200 as const, used: 70, remaining: 130 },

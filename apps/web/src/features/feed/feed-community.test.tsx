@@ -38,6 +38,7 @@ const kudo = {
   points: 20,
   description: 'Excellent work.',
   committedAt: '2026-07-25T10:00:00.000Z',
+  attachments: [],
   reactions: {
     counts: { celebrate: 0, heart: 0, clap: 0, fire: 0 },
     currentUserReaction: null,

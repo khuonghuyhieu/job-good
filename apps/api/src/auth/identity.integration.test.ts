@@ -5,6 +5,12 @@ import { database, EmployeeStatus } from '@good-job/database';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import request, { type Response } from 'supertest';
 import { io, type Socket } from 'socket.io-client';
+import { randomUUID } from 'node:crypto';
+import {
+  realtimeRedisChannel,
+  realtimeSocketEventName,
+} from '@good-job/contracts';
+import { Redis } from 'ioredis';
 
 import { AppModule } from '../app.module.js';
 import { AuthenticatedSocketService } from './authenticated-socket.service.js';
@@ -307,6 +313,81 @@ describe('Phase 2 identity', () => {
       client.on('connect_error', reject);
     });
     expect(socket.connected).toBe(true);
+    const employee = await database.employee.findUniqueOrThrow({
+      where: { id: activeEmployeeId },
+    });
+    const eventId = randomUUID();
+    const received = new Promise<string>((resolve) => {
+      socket.once(realtimeSocketEventName, (event: { eventId: string }) =>
+        resolve(event.eventId),
+      );
+    });
+    const publisher = new Redis(testConfig().REDIS_URL);
+    await publisher.publish(
+      realtimeRedisChannel,
+      JSON.stringify({
+        eventId,
+        type: 'kudo.committed',
+        organizationId: employee.organizationId,
+        occurredAt: new Date().toISOString(),
+        payload: {
+          kudoId: randomUUID(),
+          senderId: activeEmployeeId,
+          receiverId: randomUUID(),
+          coreValueId: randomUUID(),
+          points: 20,
+          description: 'Realtime organization event.',
+        },
+      }),
+    );
+    expect(await received).toBe(eventId);
+
+    let receivedUnauthorizedEvent = false;
+    socket.on(realtimeSocketEventName, () => {
+      receivedUnauthorizedEvent = true;
+    });
+    await publisher.publish(
+      realtimeRedisChannel,
+      JSON.stringify({
+        eventId: randomUUID(),
+        type: 'kudo.committed',
+        organizationId: '90000000-0000-4000-8000-000000000001',
+        occurredAt: new Date().toISOString(),
+        payload: {
+          kudoId: randomUUID(),
+          senderId: activeEmployeeId,
+          receiverId: randomUUID(),
+          coreValueId: randomUUID(),
+          points: 20,
+          description: 'Foreign organization event.',
+        },
+      }),
+    );
+    await publisher.publish(
+      realtimeRedisChannel,
+      JSON.stringify({
+        eventId: randomUUID(),
+        type: 'notification.created',
+        organizationId: employee.organizationId,
+        recipientUserIds: [unknownEmployeeId],
+        occurredAt: new Date().toISOString(),
+        payload: { notificationId: randomUUID() },
+      }),
+    );
+    await publisher.publish(
+      realtimeRedisChannel,
+      JSON.stringify({
+        eventId: randomUUID(),
+        type: 'notification.created',
+        organizationId: '90000000-0000-4000-8000-000000000001',
+        recipientUserIds: [activeEmployeeId],
+        occurredAt: new Date().toISOString(),
+        payload: { notificationId: randomUUID() },
+      }),
+    );
+    publisher.disconnect();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(receivedUnauthorizedEvent).toBe(false);
     socket.close();
   });
 });

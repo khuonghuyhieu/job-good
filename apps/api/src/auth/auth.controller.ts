@@ -24,6 +24,7 @@ import { CurrentPrincipal } from './current-principal.decorator.js';
 import type { AuthenticatedPrincipal } from './authenticated-principal.js';
 import { CurrentUserService } from './current-user.service.js';
 import { SessionAuthGuard } from './session-auth.guard.js';
+import { AuthenticatedSocketService } from './authenticated-socket.service.js';
 
 @Controller()
 export class AuthController {
@@ -31,6 +32,8 @@ export class AuthController {
     @Inject(CONFIG) private readonly config: ServerConfig,
     @Inject(CurrentUserService)
     private readonly currentUser: CurrentUserService,
+    @Inject(AuthenticatedSocketService)
+    private readonly sockets: AuthenticatedSocketService,
   ) {}
 
   @Get('auth/demo-users')
@@ -123,9 +126,11 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response,
   ): Promise<void> {
     const cookie = request.session.cookie;
+    const employeeId = request.session.employeeId;
     await new Promise<void>((resolve, reject) =>
       request.session.destroy((error) => (error ? reject(error) : resolve())),
     );
+    if (employeeId) await this.sockets.disconnectEmployee(employeeId);
     response.clearCookie(request.app.get('sessionCookieName') as string, {
       httpOnly: true,
       sameSite: 'lax',

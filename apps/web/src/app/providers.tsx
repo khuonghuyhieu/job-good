@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { PropsWithChildren } from 'react';
 
 import { SessionProvider } from './session/SessionProvider.js';
+import { RealtimeProvider } from './realtime/RealtimeProvider.js';
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -16,7 +17,9 @@ export const queryClient = new QueryClient({
 export function AppProviders({ children }: PropsWithChildren) {
   return (
     <QueryClientProvider client={queryClient}>
-      <SessionProvider>{children}</SessionProvider>
+      <SessionProvider>
+        <RealtimeProvider>{children}</RealtimeProvider>
+      </SessionProvider>
     </QueryClientProvider>
   );
 }

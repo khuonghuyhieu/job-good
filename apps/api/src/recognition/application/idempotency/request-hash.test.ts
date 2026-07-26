@@ -40,7 +40,11 @@ describe('Create Kudo request hash', () => {
         hashCreateKudoRequest({ ...base, points: 40 }),
         hashCreateKudoRequest({ ...base, coreValueId: receiverId }),
         hashCreateKudoRequest({ ...base, description: 'Different.' }),
+        hashCreateKudoRequest({
+          ...base,
+          attachmentIds: ['30000000-0000-4000-8000-000000000001'],
+        }),
       ]).size,
-    ).toBe(5);
+    ).toBe(6);
   });
 });

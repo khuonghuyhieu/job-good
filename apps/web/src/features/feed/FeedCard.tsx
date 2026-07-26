@@ -2,6 +2,7 @@ import type { FeedKudo } from '@good-job/contracts';
 import { Link } from 'react-router-dom';
 
 import { ReactionBar } from '../reactions/ReactionBar.js';
+import { MediaAttachmentView } from '../media/MediaAttachmentView.js';
 
 export function FeedCard({ kudo }: { kudo: FeedKudo }) {
   return (
@@ -17,6 +18,9 @@ export function FeedCard({ kudo }: { kudo: FeedKudo }) {
           {new Date(kudo.committedAt).toLocaleString()}
         </time>
       </p>
+      {kudo.attachments.map((attachment) => (
+        <MediaAttachmentView key={attachment.id} attachmentId={attachment.id} />
+      ))}
       <ReactionBar kudoId={kudo.id} reactions={kudo.reactions} />
       <Link to={`/kudos/${kudo.id}`}>
         View Kudo · {kudo.commentCount} comments

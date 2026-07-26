@@ -7,7 +7,12 @@ import {
   type ReactionResponse,
   type SupportedEmoji,
 } from '@good-job/contracts';
-import { database, KudoStatus, type Prisma } from '@good-job/database';
+import {
+  database,
+  KudoStatus,
+  OutboxStatus,
+  type Prisma,
+} from '@good-job/database';
 
 import type { AuthenticatedPrincipal } from '../../auth/authenticated-principal.js';
 import { CommunityRuleError } from '../domain/community-rule.error.js';
@@ -45,7 +50,23 @@ export class CommunityRepository {
         update: { emojiCode },
         create: { kudoId, employeeId: principal.employeeId, emojiCode },
       });
-      return this.reactionResponse(transaction, principal.employeeId, kudoId);
+      const response = await this.reactionResponse(
+        transaction,
+        principal.employeeId,
+        kudoId,
+      );
+      await this.insertEvent(
+        transaction,
+        principal,
+        'reaction.changed',
+        kudoId,
+        {
+          kudoId,
+          actorEmployeeId: principal.employeeId,
+          reactions: response.reactions,
+        },
+      );
+      return response;
     });
   }
 
@@ -58,7 +79,23 @@ export class CommunityRepository {
       await transaction.reaction.deleteMany({
         where: { kudoId, employeeId: principal.employeeId },
       });
-      return this.reactionResponse(transaction, principal.employeeId, kudoId);
+      const response = await this.reactionResponse(
+        transaction,
+        principal.employeeId,
+        kudoId,
+      );
+      await this.insertEvent(
+        transaction,
+        principal,
+        'reaction.changed',
+        kudoId,
+        {
+          kudoId,
+          actorEmployeeId: principal.employeeId,
+          reactions: response.reactions,
+        },
+      );
+      return response;
     });
   }
 
@@ -89,6 +126,16 @@ export class CommunityRepository {
       const response: CreateCommentResponse = {
         comment: mapComment(comment, principal.employeeId),
       };
+      await this.insertEvent(
+        transaction,
+        principal,
+        'comment.created',
+        kudoId,
+        {
+          kudoId,
+          comment: response.comment,
+        },
+      );
       await transaction.idempotencyRecord.update({
         where: {
           organizationId_employeeId_operation_key: {
@@ -106,6 +153,33 @@ export class CommunityRepository {
         },
       });
       return response;
+    });
+  }
+
+  private async insertEvent(
+    transaction: Prisma.TransactionClient,
+    principal: AuthenticatedPrincipal,
+    type: 'reaction.changed' | 'comment.created',
+    aggregateId: string,
+    payload: Prisma.InputJsonValue,
+  ): Promise<void> {
+    const eventId = randomUUID();
+    await transaction.transactionalOutbox.create({
+      data: {
+        id: eventId,
+        organizationId: principal.organizationId,
+        eventType: type,
+        aggregateType: type === 'reaction.changed' ? 'reaction' : 'comment',
+        aggregateId,
+        payload: {
+          eventId,
+          type,
+          organizationId: principal.organizationId,
+          occurredAt: new Date().toISOString(),
+          payload,
+        },
+        status: OutboxStatus.pending,
+      },
     });
   }
 

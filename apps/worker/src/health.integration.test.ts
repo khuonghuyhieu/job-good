@@ -1,11 +1,13 @@
-import { NestFactory } from '@nestjs/core';
 import type { INestApplication } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import request from 'supertest';
 
 import { parseServerConfig } from '@good-job/config';
 
 import { AppModule } from './app.module.js';
+import { MediaWorkerService } from './media/media-worker.service.js';
+import { OutboxPublisherService } from './outbox/outbox-publisher.service.js';
 
 describe('Worker health endpoints', () => {
   let app: INestApplication;
@@ -34,9 +36,15 @@ describe('Worker health endpoints', () => {
       ORGANIZATION_TIMEZONE: 'Asia/Ho_Chi_Minh',
       SEED_BUSINESS_MONTH: '2026-07',
     });
-    app = await NestFactory.create(AppModule.register(config), {
-      logger: false,
-    });
+    const module = await Test.createTestingModule({
+      imports: [AppModule.register(config)],
+    })
+      .overrideProvider(MediaWorkerService)
+      .useValue({ ping: async () => undefined })
+      .overrideProvider(OutboxPublisherService)
+      .useValue({ ping: async () => undefined })
+      .compile();
+    app = module.createNestApplication();
     await app.init();
   });
 
@@ -58,7 +66,10 @@ describe('Worker health endpoints', () => {
     expect(response.body).toMatchObject({
       service: 'worker',
       status: 'ok',
-      dependencies: { queue: { status: 'up' } },
+      dependencies: {
+        queue: { status: 'up' },
+        outbox: { status: 'up' },
+      },
     });
   });
 });

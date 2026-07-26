@@ -3,6 +3,7 @@ import { Link, Outlet, useNavigate } from 'react-router-dom';
 
 import { useSession } from '../app/session/session-context.js';
 import { logout } from '../features/auth/api.js';
+import { NotificationIndicator } from '../features/notifications/NotificationIndicator.js';
 
 export function AppShell() {
   const session = useSession();
@@ -30,6 +31,7 @@ export function AppShell() {
         <div className="current-user">
           <Link to="/wallet">Wallet</Link>
           <Link to="/rewards">Rewards</Link>
+          <NotificationIndicator />
           <span>
             {session.currentUser.user.displayName} ·{' '}
             {session.currentUser.organization.name}

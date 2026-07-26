@@ -12,6 +12,7 @@ import {
   database,
   LedgerDirection,
   LedgerSourceType,
+  OutboxStatus,
   RedemptionStatus,
 } from '@good-job/database';
 
@@ -215,6 +216,30 @@ export class RewardsRepository {
         sequence,
         balanceAfter,
       };
+      const eventId = randomUUID();
+      await transaction.transactionalOutbox.create({
+        data: {
+          id: eventId,
+          organizationId: principal.organizationId,
+          eventType: 'reward.redeemed',
+          aggregateType: 'reward_redemption',
+          aggregateId: redemption.id,
+          payload: {
+            eventId,
+            type: 'reward.redeemed',
+            organizationId: principal.organizationId,
+            recipientUserIds: [principal.employeeId],
+            occurredAt: committedAt.toISOString(),
+            payload: {
+              redemptionId: redemption.id,
+              rewardId: reward.id,
+              debit: reward.costPoints,
+              balanceAfter,
+            },
+          },
+          status: OutboxStatus.pending,
+        },
+      });
       await this.idempotency.complete(transaction, claim.recordId, response);
       return response;
     });

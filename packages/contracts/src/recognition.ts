@@ -44,6 +44,7 @@ export const createKudoRequestSchema = z
     points: z.number().int(),
     coreValueId: z.uuid(),
     description: z.string(),
+    attachmentIds: z.array(z.uuid()).max(5).optional(),
   })
   .strict();
 
@@ -58,6 +59,13 @@ export const committedKudoSchema = z.object({
   description: z.string().min(1),
   status: z.literal('committed'),
   committedAt: z.string().datetime(),
+  attachments: z.array(
+    z.object({
+      id: z.uuid(),
+      mediaType: z.enum(['image', 'video']),
+      status: z.enum(['uploading', 'processing', 'ready', 'failed']),
+    }),
+  ),
 });
 
 export const createKudoResponseSchema = z.object({

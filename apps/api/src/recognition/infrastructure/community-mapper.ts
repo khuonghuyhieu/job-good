@@ -51,6 +51,11 @@ type KudoRow = {
   coreValue: { id: string; code: string; name: string };
   reactions: ReactionRow[];
   _count: { comments: number };
+  attachments?: Array<{
+    id: string;
+    mediaType: 'image' | 'video';
+    status: 'uploading' | 'processing' | 'ready' | 'failed';
+  }>;
 };
 
 export function mapFeedKudo(row: KudoRow, employeeId: string): FeedKudo {
@@ -64,6 +69,7 @@ export function mapFeedKudo(row: KudoRow, employeeId: string): FeedKudo {
     committedAt: row.committedAt.toISOString(),
     reactions: mapReactionState(row.reactions, employeeId),
     commentCount: row._count.comments,
+    attachments: row.attachments ?? [],
   };
 }
 
