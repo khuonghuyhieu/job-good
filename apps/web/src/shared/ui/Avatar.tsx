@@ -1,4 +1,4 @@
-import { type CSSProperties, type HTMLAttributes, useState } from 'react';
+import { type HTMLAttributes, useState } from 'react';
 
 import { classNames } from './class-names.js';
 
@@ -29,13 +29,19 @@ function paletteIndex(value: string): number {
 }
 
 const palettes = [
-  ['#68204a', '#22cdd1'],
-  ['#7617b5', '#ee4f9b'],
-  ['#a85b08', '#ff9818'],
-  ['#3478d4', '#22cdd1'],
-  ['#18864b', '#ff9818'],
-  ['#b93838', '#ee4f9b'],
+  'bg-gj-avatar-1 border-gj-avatar-ring-1',
+  'bg-gj-avatar-2 border-gj-avatar-ring-2',
+  'bg-gj-avatar-3 border-gj-avatar-ring-3',
+  'bg-gj-avatar-4 border-gj-avatar-ring-4',
+  'bg-gj-avatar-5 border-gj-avatar-ring-5',
+  'bg-gj-avatar-6 border-gj-avatar-ring-6',
 ] as const;
+const avatarSizes = {
+  small: 'gj-avatar--small size-8 text-[0.68rem]',
+  medium: 'gj-avatar--medium size-10 text-[0.85rem]',
+  large: 'gj-avatar--large size-14 text-[1.19rem]',
+  profile: 'gj-avatar--profile size-24 text-[2.04rem]',
+} as const;
 
 export function Avatar({
   name,
@@ -45,31 +51,27 @@ export function Avatar({
   style,
   ...props
 }: AvatarProps) {
-  const [imageFailed, setImageFailed] = useState(false);
-  const [background, ring] = palettes[paletteIndex(name)]!;
-  const customProperties = {
-    '--gj-avatar-background': background,
-    '--gj-avatar-ring': ring,
-    ...style,
-  } as CSSProperties;
+  const [failedSource, setFailedSource] = useState<string | null>(null);
+  const palette = palettes[paletteIndex(name)]!;
 
   return (
     <span
       className={classNames(
-        'gj-avatar',
-        size !== 'medium' && `gj-avatar--${size}`,
+        'gj-avatar inline-grid shrink-0 place-items-center overflow-hidden rounded-full border-2 font-gj font-extrabold text-white uppercase [&_img]:size-full [&_img]:object-cover',
+        palette,
+        avatarSizes[size],
         className,
       )}
-      style={customProperties}
+      style={style}
       aria-label={name}
       role="img"
       {...props}
     >
-      {src && !imageFailed ? (
+      {src && src !== failedSource ? (
         <img
           src={src}
           alt=""
-          onError={() => setImageFailed(true)}
+          onError={() => setFailedSource(src)}
           aria-hidden="true"
         />
       ) : (

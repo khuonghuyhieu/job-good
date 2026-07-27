@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 
 import { ApiClientError } from '../api/error-adapter.js';
@@ -8,6 +8,7 @@ import { getDemoUsers, login } from '../features/auth/api.js';
 
 export function LoginPage() {
   const session = useSession();
+  const location = useLocation();
   const navigate = useNavigate();
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
   const users = useQuery({
@@ -28,6 +29,9 @@ export function LoginPage() {
   }
 
   const error = loginMutation.error;
+  const showSessionNotice =
+    isSessionRequiredNavigationState(location.state) &&
+    session.status === 'unauthenticated';
   const errorMessage =
     error instanceof ApiClientError
       ? error.code === 'EMPLOYEE_INACTIVE'
@@ -42,11 +46,32 @@ export function LoginPage() {
         : null;
 
   return (
-    <main className="login-page">
-      <section className="login-card" aria-labelledby="login-title">
-        <p className="eyebrow">Good Job</p>
-        <h1 id="login-title">Choose your demo employee</h1>
-        <p>Sign in to open your protected recognition dashboard.</p>
+    <main className="login-page grid min-h-screen place-items-center p-6">
+      <section
+        className="login-card w-full max-w-lg rounded-2xl border border-gj-border bg-gj-surface p-8 shadow-gj-card"
+        aria-labelledby="login-title"
+      >
+        <p className="m-0 mb-2 text-gj-xs font-extrabold tracking-[0.12em] text-gj-primary-600 uppercase">
+          Good Job
+        </p>
+        <h1
+          className="m-0 text-[clamp(2rem,6vw,3.6rem)] leading-[1.05] tracking-[-0.04em]"
+          id="login-title"
+        >
+          Choose your demo employee
+        </h1>
+        <p className="mt-4">
+          Sign in to open your protected recognition dashboard.
+        </p>
+        {showSessionNotice && (
+          <div
+            className="session-notice my-4 rounded-gj-sm border border-gj-info bg-gj-info-subtle p-3 text-gj-info"
+            role="status"
+          >
+            Your protected session is no longer active. Sign in again to
+            continue.
+          </div>
+        )}
 
         {users.isPending && <p role="status">Loading demo employees…</p>}
         {users.isError && (
@@ -66,6 +91,7 @@ export function LoginPage() {
         )}
         {users.data && users.data.users.length > 0 && (
           <form
+            className="mt-6 grid gap-3"
             onSubmit={(event) => {
               event.preventDefault();
               if (selectedEmployeeId) {
@@ -75,6 +101,7 @@ export function LoginPage() {
           >
             <label htmlFor="employee">Demo employee</label>
             <select
+              className="min-h-11 rounded-gj-sm border border-gj-control-border bg-gj-surface px-3 font-inherit"
               id="employee"
               value={selectedEmployeeId}
               disabled={loginMutation.isPending}
@@ -88,6 +115,7 @@ export function LoginPage() {
               ))}
             </select>
             <button
+              className="min-h-11 cursor-pointer rounded-gj-sm bg-gj-primary-600 px-4 font-inherit text-white disabled:cursor-wait disabled:opacity-65"
               type="submit"
               disabled={!selectedEmployeeId || loginMutation.isPending}
             >
@@ -98,5 +126,16 @@ export function LoginPage() {
         {errorMessage && <div role="alert">{errorMessage}</div>}
       </section>
     </main>
+  );
+}
+
+function isSessionRequiredNavigationState(
+  state: unknown,
+): state is { reason: 'protected-session-required' } {
+  return (
+    typeof state === 'object' &&
+    state !== null &&
+    'reason' in state &&
+    state.reason === 'protected-session-required'
   );
 }

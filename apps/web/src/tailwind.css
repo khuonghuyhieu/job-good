@@ -1,0 +1,140 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-gj-canvas: #f7f6f5;
+  --color-gj-surface: #ffffff;
+  --color-gj-surface-subtle: #fbfaf9;
+  --color-gj-text: #2f1728;
+  --color-gj-text-secondary: #756b73;
+  --color-gj-text-muted: #665d63;
+  --color-gj-border: #eee9ec;
+  --color-gj-control-border: #857780;
+  --color-gj-brand-700: #4b1634;
+  --color-gj-brand-600: #68204a;
+  --color-gj-primary-700: #7617b5;
+  --color-gj-primary-600: #8d20d4;
+  --color-gj-primary-500: #a62be4;
+  --color-gj-primary-100: #f4e8fb;
+  --color-gj-orange: #ff9818;
+  --color-gj-cyan: #22cdd1;
+  --color-gj-pink: #ee4f9b;
+  --color-gj-success: #116b3b;
+  --color-gj-success-subtle: #e8f7ef;
+  --color-gj-warning: #a85b08;
+  --color-gj-warning-subtle: #fff4df;
+  --color-gj-danger: #b93838;
+  --color-gj-danger-subtle: #fff0f0;
+  --color-gj-info: #3478d4;
+  --color-gj-info-subtle: #edf5ff;
+  --color-gj-focus: #7621b6;
+  --color-gj-overlay: rgb(47 23 40 / 45%);
+  --color-gj-skeleton-highlight: rgb(255 255 255 / 75%);
+  --color-gj-avatar-1: var(--color-gj-brand-600);
+  --color-gj-avatar-ring-1: var(--color-gj-cyan);
+  --color-gj-avatar-2: var(--color-gj-primary-700);
+  --color-gj-avatar-ring-2: var(--color-gj-pink);
+  --color-gj-avatar-3: #8b4a07;
+  --color-gj-avatar-ring-3: var(--color-gj-orange);
+  --color-gj-avatar-4: var(--color-gj-info);
+  --color-gj-avatar-ring-4: var(--color-gj-cyan);
+  --color-gj-avatar-5: var(--color-gj-success);
+  --color-gj-avatar-ring-5: var(--color-gj-orange);
+  --color-gj-avatar-6: var(--color-gj-danger);
+  --color-gj-avatar-ring-6: var(--color-gj-pink);
+
+  --font-gj:
+    Poppins, Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    'Segoe UI', sans-serif;
+
+  --text-gj-xs: 0.75rem;
+  --text-gj-sm: 0.875rem;
+  --text-gj-md: 1rem;
+  --text-gj-lg: 1.125rem;
+  --text-gj-xl: 1.375rem;
+  --text-gj-2xl: 1.75rem;
+  --text-gj-3xl: 2.125rem;
+
+  --radius-gj-sm: 0.625rem;
+  --radius-gj-md: 0.875rem;
+  --radius-gj-lg: 1.25rem;
+  --radius-gj-xl: 1.75rem;
+
+  --shadow-gj-card:
+    0 10px 30px rgb(58 32 49 / 7%), 0 2px 8px rgb(58 32 49 / 4%);
+  --shadow-gj-popover: 0 18px 50px rgb(58 32 49 / 15%);
+  --shadow-gj-shell: 0 6px 24px rgb(58 32 49 / 5%);
+  --shadow-gj-mobile-nav: 0 -8px 24px rgb(58 32 49 / 7%);
+  --shadow-gj-logo: 0 7px 18px rgb(141 32 212 / 24%);
+
+  --breakpoint-mobile: 48rem;
+  --breakpoint-tablet: 75rem;
+
+  --background-image-gj-skeleton: linear-gradient(
+    100deg,
+    transparent 30%,
+    var(--color-gj-skeleton-highlight) 50%,
+    transparent 70%
+  );
+  --background-image-gj-system-state:
+    radial-gradient(
+      circle at 20% 15%,
+      color-mix(in srgb, var(--color-gj-cyan) 12%, transparent),
+      transparent 28rem
+    ),
+    radial-gradient(
+      circle at 85% 80%,
+      color-mix(in srgb, var(--color-gj-pink) 10%, transparent),
+      transparent 30rem
+    );
+
+  --animate-gj-spin: gj-spin 700ms linear infinite;
+  --animate-gj-skeleton: gj-skeleton 1.4s ease-in-out infinite;
+
+  @keyframes gj-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes gj-skeleton {
+    from {
+      background-position-x: 180%;
+    }
+    to {
+      background-position-x: -20%;
+    }
+  }
+}
+
+@layer base {
+  html {
+    min-width: 320px;
+    min-height: 100%;
+    background: var(--color-gj-canvas);
+  }
+
+  body {
+    min-width: 320px;
+    min-height: 100vh;
+    color: var(--color-gj-text);
+    background: var(--color-gj-canvas);
+    font-family: var(--font-gj);
+    font-synthesis: none;
+  }
+
+  :where(a, button, input, select, textarea, summary):focus-visible {
+    outline: 3px solid var(--color-gj-focus);
+    outline-offset: 3px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

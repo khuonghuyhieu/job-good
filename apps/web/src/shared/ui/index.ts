@@ -1,4 +1,5 @@
 export { Avatar } from './Avatar.js';
+export { AppIcon, type AppIconName } from './AppIcon.js';
 export {
   Button,
   IconButton,

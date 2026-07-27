@@ -10,6 +10,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ProtectedRoute } from './ProtectedRoute.js';
 import {
+  ProtectedNotFoundPage,
+  ProtectedRouteError,
+} from './ProtectedRouteError.js';
+import {
   SessionContext,
   type SessionContextValue,
   useSession,
@@ -285,6 +289,80 @@ describe('protected routing', () => {
     expect(queryClient.getMutationCache().getAll()).toHaveLength(0);
   });
 
+  it('explains that the protected session is no longer active after redirect', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ users: [] })));
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const session: SessionContextValue = {
+      status: 'unauthenticated',
+      currentUser: null,
+      acceptLogin: vi.fn(),
+      clearProtectedState: vi.fn(async () => undefined),
+      retrySession: vi.fn(async () => undefined),
+    };
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SessionContext.Provider value={session}>
+          <MemoryRouter
+            initialEntries={[
+              {
+                pathname: '/login',
+                state: {
+                  from: '/wallet',
+                  reason: 'protected-session-required',
+                },
+              },
+            ]}
+          >
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+            </Routes>
+          </MemoryRouter>
+        </SessionContext.Provider>
+      </QueryClientProvider>,
+    );
+
+    expect(
+      screen.getByText(/protected session is no longer active/i),
+    ).toHaveTextContent('protected session is no longer active');
+    expect(
+      await screen.findByText('No active demo employees are available.'),
+    ).toBeInTheDocument();
+  });
+
+  it('provides recoverable protected error and not-found surfaces', async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/broken']}>
+        <Routes>
+          <Route path="/broken" element={<ProtectedRouteError />} />
+          <Route path="/" element={<p>Protected dashboard</p>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'This page could not be displayed',
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'Return to dashboard' }),
+    );
+    expect(screen.getByText('Protected dashboard')).toBeInTheDocument();
+
+    cleanup();
+    render(
+      <MemoryRouter initialEntries={['/missing']}>
+        <Routes>
+          <Route path="/missing" element={<ProtectedNotFoundPage />} />
+          <Route path="/" element={<p>Protected dashboard</p>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent('Page not found');
+  });
+
   it('recovers from a temporary current-user service failure', async () => {
     const fetchMock = vi
       .fn()
@@ -445,6 +523,11 @@ describe('protected routing', () => {
       </QueryClientProvider>,
     );
 
+    await userEvent.click(
+      screen.getByRole('button', {
+        name: `Open account menu for ${currentUser.user.displayName}`,
+      }),
+    );
     await userEvent.click(screen.getByRole('button', { name: 'Sign out' }));
 
     expect(await screen.findByText('Login destination')).toBeInTheDocument();

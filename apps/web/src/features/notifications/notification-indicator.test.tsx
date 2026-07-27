@@ -29,18 +29,33 @@ afterEach(() => {
 
 describe('Phase 8 durable notification indicator', () => {
   it('shows loading and empty states from authoritative queries', async () => {
-    api.getNotifications.mockResolvedValue({ items: [], nextCursor: null });
-    api.getUnreadNotificationCount.mockResolvedValue({ unreadCount: 0 });
+    let resolveNotifications!: (value: { items: []; nextCursor: null }) => void;
+    let resolveUnread!: (value: { unreadCount: number }) => void;
+    api.getNotifications.mockReturnValue(
+      new Promise((resolve) => {
+        resolveNotifications = resolve;
+      }),
+    );
+    api.getUnreadNotificationCount.mockReturnValue(
+      new Promise((resolve) => {
+        resolveUnread = resolve;
+      }),
+    );
 
     renderIndicator();
-    expect(screen.getByRole('status')).toHaveTextContent(
-      'Loading notifications',
-    );
+    const trigger = screen.getByRole('button', {
+      name: 'Notifications, loading',
+    });
+    await userEvent.click(trigger);
     expect(
-      await screen.findByText('Notifications (0 unread)'),
+      screen.getByRole('status', { name: 'Loading notifications' }),
+    ).toHaveTextContent('Loading notifications');
+    resolveNotifications({ items: [], nextCursor: null });
+    resolveUnread({ unreadCount: 0 });
+    expect(
+      await screen.findByRole('button', { name: 'Notifications, 0 unread' }),
     ).toBeInTheDocument();
-    await userEvent.click(screen.getByText('Notifications (0 unread)'));
-    expect(screen.getByText('No notifications yet.')).toBeInTheDocument();
+    expect(await screen.findByText('No notifications yet')).toBeInTheDocument();
   });
 
   it('opens the related Kudo and marks an unread notification read', async () => {
@@ -74,12 +89,56 @@ describe('Phase 8 durable notification indicator', () => {
     });
 
     renderIndicator();
-    await userEvent.click(await screen.findByText('Notifications (1 unread)'));
+    await userEvent.click(
+      await screen.findByRole('button', {
+        name: 'Notifications, 1 unread',
+      }),
+    );
     const link = screen.getByRole('link', { name: 'Open Kudo' });
     expect(link).toHaveAttribute('href', `/kudos/${kudoId}`);
     await userEvent.click(link);
     await waitFor(() => expect(api.markNotificationRead).toHaveBeenCalled());
     expect(api.markNotificationRead.mock.calls[0]?.[0]).toBe(notificationId);
+  });
+
+  it('shows a single pending retry and recovers from query failure', async () => {
+    const user = userEvent.setup();
+    let resolveNotifications!: (value: { items: []; nextCursor: null }) => void;
+    let resolveUnread!: (value: { unreadCount: number }) => void;
+    api.getNotifications
+      .mockRejectedValueOnce(new Error('Unavailable'))
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveNotifications = resolve;
+        }),
+      );
+    api.getUnreadNotificationCount
+      .mockRejectedValueOnce(new Error('Unavailable'))
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveUnread = resolve;
+        }),
+      );
+
+    renderIndicator();
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Notifications unavailable',
+      }),
+    );
+    const retry = screen.getByRole('button', { name: 'Retry notifications' });
+    await user.click(retry);
+    expect(screen.getByRole('button', { name: 'Retrying…' })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Retrying…' }));
+    expect(api.getNotifications).toHaveBeenCalledTimes(2);
+    expect(api.getUnreadNotificationCount).toHaveBeenCalledTimes(2);
+
+    resolveNotifications({ items: [], nextCursor: null });
+    resolveUnread({ unreadCount: 0 });
+    expect(
+      await screen.findByRole('button', { name: 'Notifications, 0 unread' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('No notifications yet')).toBeInTheDocument();
   });
 });
 
