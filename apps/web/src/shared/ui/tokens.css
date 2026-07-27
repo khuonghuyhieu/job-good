@@ -1,0 +1,75 @@
+:root {
+  --gj-color-canvas: #f7f6f5;
+  --gj-color-surface: #ffffff;
+  --gj-color-surface-subtle: #fbfaf9;
+  --gj-color-text-primary: #2f1728;
+  --gj-color-text-secondary: #756b73;
+  --gj-color-text-muted: #a29aa0;
+  --gj-color-border: #eee9ec;
+  --gj-color-brand-700: #4b1634;
+  --gj-color-brand-600: #68204a;
+  --gj-color-primary-700: #7617b5;
+  --gj-color-primary-600: #8d20d4;
+  --gj-color-primary-500: #a62be4;
+  --gj-color-primary-100: #f4e8fb;
+  --gj-color-accent-orange: #ff9818;
+  --gj-color-accent-cyan: #22cdd1;
+  --gj-color-accent-pink: #ee4f9b;
+  --gj-color-success: #18864b;
+  --gj-color-success-subtle: #e8f7ef;
+  --gj-color-warning: #a85b08;
+  --gj-color-warning-subtle: #fff4df;
+  --gj-color-danger: #b93838;
+  --gj-color-danger-subtle: #fff0f0;
+  --gj-color-info: #3478d4;
+  --gj-color-info-subtle: #edf5ff;
+  --gj-color-focus: #7621b6;
+  --gj-color-overlay: rgb(47 23 40 / 45%);
+
+  --gj-font-family:
+    Poppins, Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    'Segoe UI', sans-serif;
+  --gj-font-size-xs: 0.75rem;
+  --gj-font-size-sm: 0.875rem;
+  --gj-font-size-md: 1rem;
+  --gj-font-size-lg: 1.125rem;
+  --gj-font-size-xl: 1.375rem;
+  --gj-font-size-2xl: 1.75rem;
+  --gj-font-size-3xl: 2.125rem;
+  --gj-line-height-tight: 1.2;
+  --gj-line-height-body: 1.55;
+
+  --gj-space-1: 0.25rem;
+  --gj-space-2: 0.5rem;
+  --gj-space-3: 0.75rem;
+  --gj-space-4: 1rem;
+  --gj-space-5: 1.25rem;
+  --gj-space-6: 1.5rem;
+  --gj-space-8: 2rem;
+  --gj-space-10: 2.5rem;
+  --gj-space-12: 3rem;
+
+  --gj-radius-sm: 0.625rem;
+  --gj-radius-md: 0.875rem;
+  --gj-radius-lg: 1.25rem;
+  --gj-radius-xl: 1.75rem;
+  --gj-radius-round: 999px;
+
+  --gj-shadow-card:
+    0 10px 30px rgb(58 32 49 / 7%), 0 2px 8px rgb(58 32 49 / 4%);
+  --gj-shadow-popover: 0 18px 50px rgb(58 32 49 / 15%);
+
+  --gj-z-popover: 30;
+  --gj-z-overlay: 40;
+  --gj-z-toast: 50;
+  --gj-duration-fast: 140ms;
+  --gj-duration-normal: 200ms;
+  --gj-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --gj-duration-fast: 0ms;
+    --gj-duration-normal: 0ms;
+  }
+}
