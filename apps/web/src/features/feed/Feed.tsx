@@ -4,6 +4,13 @@ import type { FeedKudo } from '@good-job/contracts';
 import { getFeed } from './api.js';
 import { FeedCard } from './FeedCard.js';
 import { feedQueryKeys } from './query-keys.js';
+import {
+  Button,
+  EmptyState,
+  ErrorState,
+  Heading,
+  LoadingState,
+} from '../../shared/ui/index.js';
 
 export function Feed() {
   const query = useInfiniteQuery({
@@ -14,16 +21,23 @@ export function Feed() {
   });
 
   if (query.isPending) {
-    return <p role="status">Loading recognition Feed…</p>;
+    return (
+      <section aria-label="Recognition Feed">
+        <LoadingState
+          title="Loading recognition Feed"
+          description="Gathering the latest committed Kudos…"
+        />
+      </section>
+    );
   }
   if (query.isError && !query.data) {
     return (
-      <div role="alert">
-        Feed is temporarily unavailable.
-        <button type="button" onClick={() => void query.refetch()}>
-          Retry Feed
-        </button>
-      </div>
+      <ErrorState
+        title="Feed is temporarily unavailable"
+        description="Your recognition activity is safe. Try loading it again."
+        actionLabel="Retry Feed"
+        onAction={() => void query.refetch()}
+      />
     );
   }
 
@@ -38,30 +52,50 @@ export function Feed() {
   const items = [...unique.values()];
 
   return (
-    <section className="feed-section" aria-labelledby="feed-title">
-      <h1 id="feed-title">Recognition Feed</h1>
+    <section
+      className="feed-section grid min-w-0 gap-5"
+      aria-labelledby="feed-title"
+    >
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          <p className="m-0 text-gj-xs font-extrabold tracking-[0.1em] text-gj-primary-600 uppercase">
+            Latest recognition
+          </p>
+          <Heading id="feed-title" level={2} className="mt-1">
+            Recognition Feed
+          </Heading>
+        </div>
+      </div>
       {items.length === 0 ? (
-        <p>No Kudos yet. Be the first to recognize a colleague.</p>
+        <EmptyState
+          title="No Kudos yet"
+          description="Be the first to recognize a colleague."
+        />
       ) : (
-        <div className="feed-list">
+        <div className="feed-list m-0 grid gap-5">
           {items.map((kudo) => (
             <FeedCard key={kudo.id} kudo={kudo} />
           ))}
         </div>
       )}
       {query.isFetchNextPageError && (
-        <div role="alert">
-          Older Kudos could not be loaded. Existing Kudos are preserved.
-        </div>
+        <ErrorState
+          title="Older Kudos could not be loaded"
+          description="Existing Kudos are preserved. Try loading the next page again."
+          actionLabel="Retry older Kudos"
+          onAction={() => void query.fetchNextPage()}
+        />
       )}
       {query.hasNextPage && (
-        <button
-          type="button"
-          disabled={query.isFetchingNextPage}
+        <Button
+          variant="secondary"
+          pending={query.isFetchingNextPage}
+          pendingLabel="Loading older Kudos…"
+          className="justify-self-center"
           onClick={() => void query.fetchNextPage()}
         >
-          {query.isFetchingNextPage ? 'Loading older Kudos…' : 'Load more'}
-        </button>
+          Load more
+        </Button>
       )}
     </section>
   );

@@ -1,5 +1,7 @@
 import type { WalletOverviewResponse } from '@good-job/contracts';
 
+import { rewardBalanceExplanation } from './points-copy.js';
+
 export function RewardBalanceCard({
   overview,
 }: {
@@ -10,10 +12,7 @@ export function RewardBalanceCard({
       <p className="eyebrow">Earned points</p>
       <h2 id="wallet-reward-title">Reward Balance</h2>
       <strong>{overview.rewardBalance} Reward Points</strong>
-      <p>
-        Reward Points are earned from committed Kudos. They are independent from
-        your monthly Giving Budget.
-      </p>
+      <p>{rewardBalanceExplanation}</p>
     </section>
   );
 }

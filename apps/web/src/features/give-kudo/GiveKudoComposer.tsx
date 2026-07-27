@@ -4,7 +4,7 @@ import {
   useQueryClient,
   type QueryClient,
 } from '@tanstack/react-query';
-import { useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type {
   ColleagueSearchResponse,
   CoreValuesResponse,
@@ -27,6 +27,7 @@ import {
 import { feedQueryKey } from '../feed/query-keys.js';
 import { GivingBudgetCard } from './GivingBudgetCard.js';
 import { AttachmentPicker } from '../media/AttachmentPicker.js';
+import { Avatar, Button } from '../../shared/ui/index.js';
 
 type Draft = {
   receiverId: string;
@@ -151,7 +152,13 @@ function focusFirstInvalidField(errors: DraftErrors): void {
   }
 }
 
-export function GiveKudoComposer() {
+export function GiveKudoComposer({
+  showBudgetSummary = true,
+  compact = false,
+}: {
+  showBudgetSummary?: boolean;
+  compact?: boolean;
+} = {}) {
   const session = useSession();
   const queryClient = useQueryClient();
   const currentEmployeeId =
@@ -164,7 +171,9 @@ export function GiveKudoComposer() {
   const [recoveryCommand, setRecoveryCommand] = useState<CommandAttempt | null>(
     null,
   );
+  const [expanded, setExpanded] = useState(!compact);
   const submitting = useRef(false);
+  const compactTrigger = useRef<HTMLButtonElement>(null);
 
   const budgetQuery = useQuery({
     queryKey: walletOverviewQueryKey,
@@ -187,6 +196,7 @@ export function GiveKudoComposer() {
       setErrors({});
       setRecoveryCommand(null);
       setIdempotencyKey(newIdempotencyKey());
+      if (compact) setExpanded(false);
       await updateWalletOverviewAfterKudo(queryClient, response);
       await queryClient.invalidateQueries({ queryKey: feedQueryKey });
     },
@@ -249,6 +259,12 @@ export function GiveKudoComposer() {
     },
   });
 
+  useEffect(() => {
+    if (expanded && compact) {
+      document.getElementById('colleague-search')?.focus();
+    }
+  }, [compact, expanded]);
+
   if (session.status !== 'authenticated') {
     return null;
   }
@@ -292,192 +308,269 @@ export function GiveKudoComposer() {
   }
 
   return (
-    <div className="recognition-grid">
-      <GivingBudgetCard
-        overview={budgetQuery.data}
-        isPending={budgetQuery.isPending}
-        isError={budgetQuery.isError}
-        onRetry={() => void budgetQuery.refetch()}
-      />
+    <div
+      className={
+        showBudgetSummary ? 'recognition-grid' : 'gj-dashboard-composer min-w-0'
+      }
+    >
+      {showBudgetSummary && (
+        <GivingBudgetCard
+          overview={budgetQuery.data}
+          isPending={budgetQuery.isPending}
+          isError={budgetQuery.isError}
+          onRetry={() => void budgetQuery.refetch()}
+        />
+      )}
 
-      <section className="composer-card" aria-labelledby="give-kudo-title">
-        <p className="eyebrow">Recognition</p>
-        <h1 id="give-kudo-title">Give a Kudo</h1>
-
-        {exhausted && (
-          <div role="status" className="blocked-message">
-            Your Giving Budget is exhausted for this business month.
-          </div>
-        )}
-        {success && (
-          <div role="status" className="success-message">
-            Kudo committed for {success.kudo.points} points.
-          </div>
-        )}
-        {mutation.isError && (
-          <div role="alert">{commandErrorMessage(mutation.error)}</div>
-        )}
-
-        <form onSubmit={submit} noValidate>
-          <label htmlFor="colleague-search">Find a colleague</label>
-          <input
-            id="colleague-search"
-            value={search}
-            disabled={fieldsLocked}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search by name or team"
-          />
-          {colleaguesQuery.isPending ? (
-            <p role="status">Loading colleagues…</p>
-          ) : colleaguesQuery.isError ? (
-            <div role="alert">
-              Colleagues are temporarily unavailable.
-              <button
-                type="button"
-                onClick={() => void colleaguesQuery.refetch()}
+      <section
+        className={
+          showBudgetSummary
+            ? 'composer-card'
+            : 'composer-card rounded-gj-lg border border-gj-border bg-white p-[clamp(1.25rem,3vw,2rem)] shadow-gj-card'
+        }
+        aria-labelledby="give-kudo-title"
+        data-dashboard-composer={!showBudgetSummary || undefined}
+      >
+        {compact && !expanded ? (
+          <div className="flex items-center gap-4 max-mobile:flex-wrap">
+            <Avatar
+              name={session.currentUser.user.displayName}
+              src={session.currentUser.user.avatarUrl}
+              size="large"
+            />
+            <div className="min-w-0 flex-1">
+              <p className="eyebrow">Recognition</p>
+              <h2
+                className="m-0 text-gj-lg font-bold text-gj-brand-700"
+                id="give-kudo-title"
               >
-                Retry colleagues
-              </button>
+                Have someone to celebrate?
+              </h2>
+              <p className="mt-1 mb-0 text-gj-sm text-gj-text-secondary">
+                Give a Kudo for work that made a difference.
+              </p>
             </div>
-          ) : colleagues.length === 0 ? (
-            <p role="status">No matching colleagues.</p>
-          ) : null}
+            <Button
+              ref={compactTrigger}
+              className="max-mobile:w-full"
+              aria-expanded="false"
+              aria-controls="give-kudo-form"
+              onClick={() => setExpanded(true)}
+            >
+              Give a Kudo
+            </Button>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="eyebrow">Recognition</p>
+                <h2
+                  className="m-0 text-gj-2xl font-bold text-gj-brand-700"
+                  id="give-kudo-title"
+                >
+                  Give a Kudo
+                </h2>
+              </div>
+              {compact && (
+                <Button
+                  variant="ghost"
+                  aria-expanded="true"
+                  aria-controls="give-kudo-form"
+                  onClick={() => {
+                    setExpanded(false);
+                    setTimeout(() => compactTrigger.current?.focus(), 0);
+                  }}
+                >
+                  Close
+                </Button>
+              )}
+            </div>
 
-          <label htmlFor="receiver">Colleague</label>
-          <select
-            id="receiver"
-            value={draft.receiverId}
-            disabled={fieldsLocked}
-            aria-invalid={Boolean(errors.receiverId)}
-            aria-describedby={errors.receiverId ? 'receiver-error' : undefined}
-            onChange={(event) => updateDraft('receiverId', event.target.value)}
-          >
-            <option value="">Choose a colleague</option>
-            {colleagues.map((colleague) => (
-              <option key={colleague.id} value={colleague.id}>
-                {colleague.displayName}
-                {colleague.teamName ? ` · ${colleague.teamName}` : ''}
-              </option>
-            ))}
-          </select>
-          {errors.receiverId && (
-            <p id="receiver-error" className="field-error">
-              {errors.receiverId}
-            </p>
-          )}
+            {exhausted && (
+              <div role="status" className="blocked-message">
+                Your Giving Budget is exhausted for this business month.
+              </div>
+            )}
+            {success && (
+              <div role="status" className="success-message">
+                Kudo committed for {success.kudo.points} points.
+              </div>
+            )}
+            {mutation.isError && (
+              <div role="alert">{commandErrorMessage(mutation.error)}</div>
+            )}
 
-          <label htmlFor="core-value">Core Value</label>
-          <select
-            id="core-value"
-            value={draft.coreValueId}
-            disabled={
-              fieldsLocked ||
-              coreValuesQuery.isPending ||
-              coreValuesQuery.isError
-            }
-            aria-invalid={Boolean(errors.coreValueId)}
-            aria-describedby={
-              errors.coreValueId
-                ? 'core-value-error'
-                : coreValuesQuery.isPending
-                  ? 'core-values-loading'
-                  : undefined
-            }
-            onChange={(event) => updateDraft('coreValueId', event.target.value)}
-          >
-            <option value="">Choose a Core Value</option>
-            {coreValuesQuery.data?.items.map((coreValue) => (
-              <option key={coreValue.id} value={coreValue.id}>
-                {coreValue.name}
-              </option>
-            ))}
-          </select>
-          {coreValuesQuery.isPending ? (
-            <p id="core-values-loading" role="status">
-              Loading Core Values…
-            </p>
-          ) : coreValuesQuery.isError ? (
-            <div role="alert">
-              Core Values are temporarily unavailable.
-              <button
-                type="button"
-                onClick={() => void coreValuesQuery.refetch()}
+            <form id="give-kudo-form" onSubmit={submit} noValidate>
+              <label htmlFor="colleague-search">Find a colleague</label>
+              <input
+                id="colleague-search"
+                value={search}
+                disabled={fieldsLocked}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search by name or team"
+              />
+              {colleaguesQuery.isPending ? (
+                <p role="status">Loading colleagues…</p>
+              ) : colleaguesQuery.isError ? (
+                <div role="alert">
+                  Colleagues are temporarily unavailable.
+                  <button
+                    type="button"
+                    onClick={() => void colleaguesQuery.refetch()}
+                  >
+                    Retry colleagues
+                  </button>
+                </div>
+              ) : colleagues.length === 0 ? (
+                <p role="status">No matching colleagues.</p>
+              ) : null}
+
+              <label htmlFor="receiver">Colleague</label>
+              <select
+                id="receiver"
+                value={draft.receiverId}
+                disabled={fieldsLocked}
+                aria-invalid={Boolean(errors.receiverId)}
+                aria-describedby={
+                  errors.receiverId ? 'receiver-error' : undefined
+                }
+                onChange={(event) =>
+                  updateDraft('receiverId', event.target.value)
+                }
               >
-                Retry Core Values
+                <option value="">Choose a colleague</option>
+                {colleagues.map((colleague) => (
+                  <option key={colleague.id} value={colleague.id}>
+                    {colleague.displayName}
+                    {colleague.teamName ? ` · ${colleague.teamName}` : ''}
+                  </option>
+                ))}
+              </select>
+              {errors.receiverId && (
+                <p id="receiver-error" className="field-error">
+                  {errors.receiverId}
+                </p>
+              )}
+
+              <label htmlFor="core-value">Core Value</label>
+              <select
+                id="core-value"
+                value={draft.coreValueId}
+                disabled={
+                  fieldsLocked ||
+                  coreValuesQuery.isPending ||
+                  coreValuesQuery.isError
+                }
+                aria-invalid={Boolean(errors.coreValueId)}
+                aria-describedby={
+                  errors.coreValueId
+                    ? 'core-value-error'
+                    : coreValuesQuery.isPending
+                      ? 'core-values-loading'
+                      : undefined
+                }
+                onChange={(event) =>
+                  updateDraft('coreValueId', event.target.value)
+                }
+              >
+                <option value="">Choose a Core Value</option>
+                {coreValuesQuery.data?.items.map((coreValue) => (
+                  <option key={coreValue.id} value={coreValue.id}>
+                    {coreValue.name}
+                  </option>
+                ))}
+              </select>
+              {coreValuesQuery.isPending ? (
+                <p id="core-values-loading" role="status">
+                  Loading Core Values…
+                </p>
+              ) : coreValuesQuery.isError ? (
+                <div role="alert">
+                  Core Values are temporarily unavailable.
+                  <button
+                    type="button"
+                    onClick={() => void coreValuesQuery.refetch()}
+                  >
+                    Retry Core Values
+                  </button>
+                </div>
+              ) : coreValuesQuery.data?.items.length === 0 ? (
+                <p role="status">No active Core Values.</p>
+              ) : null}
+              {errors.coreValueId && (
+                <p id="core-value-error" className="field-error">
+                  {errors.coreValueId}
+                </p>
+              )}
+
+              <label htmlFor="points">Giving Points</label>
+              <input
+                id="points"
+                type="number"
+                min="10"
+                max="50"
+                step="10"
+                value={draft.points}
+                disabled={fieldsLocked}
+                aria-invalid={Boolean(errors.points)}
+                aria-describedby={errors.points ? 'points-error' : undefined}
+                onChange={(event) => updateDraft('points', event.target.value)}
+              />
+              {errors.points && (
+                <p id="points-error" className="field-error">
+                  {errors.points}
+                </p>
+              )}
+
+              <label htmlFor="description">Why are you recognizing them?</label>
+              <textarea
+                id="description"
+                value={draft.description}
+                disabled={fieldsLocked}
+                aria-invalid={Boolean(errors.description)}
+                aria-describedby={
+                  errors.description ? 'description-error' : undefined
+                }
+                onChange={(event) =>
+                  updateDraft('description', event.target.value)
+                }
+              />
+              {errors.description && (
+                <p id="description-error" className="field-error">
+                  {errors.description}
+                </p>
+              )}
+
+              <AttachmentPicker
+                attachmentIds={draft.attachmentIds}
+                disabled={fieldsLocked}
+                onChange={(attachmentIds) =>
+                  updateDraft('attachmentIds', attachmentIds)
+                }
+              />
+
+              <button
+                type="submit"
+                disabled={
+                  mutation.isPending ||
+                  exhausted ||
+                  budgetQuery.isPending ||
+                  budgetQuery.isError ||
+                  coreValuesQuery.isPending ||
+                  coreValuesQuery.isError ||
+                  coreValuesQuery.data?.items.length === 0
+                }
+              >
+                {mutation.isPending
+                  ? 'Sending Kudo…'
+                  : recoveryCommand
+                    ? 'Retry safely'
+                    : 'Give Kudo'}
               </button>
-            </div>
-          ) : coreValuesQuery.data?.items.length === 0 ? (
-            <p role="status">No active Core Values.</p>
-          ) : null}
-          {errors.coreValueId && (
-            <p id="core-value-error" className="field-error">
-              {errors.coreValueId}
-            </p>
-          )}
-
-          <label htmlFor="points">Giving Points</label>
-          <input
-            id="points"
-            type="number"
-            min="10"
-            max="50"
-            step="10"
-            value={draft.points}
-            disabled={fieldsLocked}
-            aria-invalid={Boolean(errors.points)}
-            aria-describedby={errors.points ? 'points-error' : undefined}
-            onChange={(event) => updateDraft('points', event.target.value)}
-          />
-          {errors.points && (
-            <p id="points-error" className="field-error">
-              {errors.points}
-            </p>
-          )}
-
-          <label htmlFor="description">Why are you recognizing them?</label>
-          <textarea
-            id="description"
-            value={draft.description}
-            disabled={fieldsLocked}
-            aria-invalid={Boolean(errors.description)}
-            aria-describedby={
-              errors.description ? 'description-error' : undefined
-            }
-            onChange={(event) => updateDraft('description', event.target.value)}
-          />
-          {errors.description && (
-            <p id="description-error" className="field-error">
-              {errors.description}
-            </p>
-          )}
-
-          <AttachmentPicker
-            attachmentIds={draft.attachmentIds}
-            disabled={fieldsLocked}
-            onChange={(attachmentIds) =>
-              updateDraft('attachmentIds', attachmentIds)
-            }
-          />
-
-          <button
-            type="submit"
-            disabled={
-              mutation.isPending ||
-              exhausted ||
-              budgetQuery.isPending ||
-              budgetQuery.isError ||
-              coreValuesQuery.isPending ||
-              coreValuesQuery.isError ||
-              coreValuesQuery.data?.items.length === 0
-            }
-          >
-            {mutation.isPending
-              ? 'Sending Kudo…'
-              : recoveryCommand
-                ? 'Retry safely'
-                : 'Give Kudo'}
-          </button>
-        </form>
+            </form>
+          </>
+        )}
       </section>
     </div>
   );

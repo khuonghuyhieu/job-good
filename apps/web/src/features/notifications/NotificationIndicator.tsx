@@ -16,6 +16,7 @@ import {
   markNotificationRead,
   notificationQueryKeys,
 } from './api.js';
+import { notificationLabel } from './presentation.js';
 
 export function NotificationIndicator() {
   const queryClient = useQueryClient();
@@ -138,14 +139,4 @@ export function NotificationIndicator() {
       </Popover>
     </div>
   );
-}
-
-function notificationLabel(type: string): string {
-  const labels: Record<string, string> = {
-    'kudo.received': 'You received a Kudo',
-    'comment.created': 'New comment',
-    'reaction.changed': 'New reaction',
-    'reward.redeemed': 'Reward redeemed',
-  };
-  return labels[type] ?? 'Good Job update';
 }

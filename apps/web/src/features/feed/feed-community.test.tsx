@@ -91,10 +91,9 @@ describe('Phase 4 Feed and community frontend', () => {
     await act(async () =>
       resolveFeed(response({ items: [], nextCursor: null })),
     );
+    expect(await screen.findByText('No Kudos yet')).toBeInTheDocument();
     expect(
-      await screen.findByText(
-        'No Kudos yet. Be the first to recognize a colleague.',
-      ),
+      screen.getByText('Be the first to recognize a colleague.'),
     ).toBeInTheDocument();
   });
 

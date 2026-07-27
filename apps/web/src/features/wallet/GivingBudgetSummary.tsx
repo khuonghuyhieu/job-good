@@ -1,5 +1,7 @@
 import type { WalletOverviewResponse } from '@good-job/contracts';
 
+import { givingBudgetExplanation } from './points-copy.js';
+
 export function GivingBudgetSummary({
   overview,
 }: {
@@ -10,10 +12,7 @@ export function GivingBudgetSummary({
       <p className="eyebrow">{overview.businessMonth}</p>
       <h2 id="wallet-giving-title">Giving Budget</h2>
       <strong>{overview.givingBudget.remaining} points remaining</strong>
-      <p>
-        Use Giving Points to recognize colleagues. They reset each organization
-        business month and cannot be spent on rewards.
-      </p>
+      <p>{givingBudgetExplanation}</p>
       <p>
         {overview.givingBudget.used} used of {overview.givingBudget.allowance}
       </p>

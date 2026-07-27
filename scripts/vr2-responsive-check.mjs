@@ -11,6 +11,7 @@ const chromeBinary =
   process.env.CHROME_BIN ??
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const debugPort = 9333;
+const inspectedRoute = process.env.RESPONSIVE_ROUTE ?? '/wallet';
 const profileDirectory = mkdtempSync(join(tmpdir(), 'good-job-vr2-chrome-'));
 const evidenceDirectory = mkdtempSync(
   join(tmpdir(), 'good-job-vr25-evidence-'),
@@ -47,7 +48,9 @@ try {
   await cdp.send('Runtime.enable');
   await waitForExpression(cdp, "document.readyState === 'complete'");
   await loginDemoUser(cdp);
-  await cdp.send('Page.navigate', { url: 'http://localhost:8080/wallet' });
+  await cdp.send('Page.navigate', {
+    url: `http://localhost:8080${inspectedRoute}`,
+  });
   await waitForExpression(
     cdp,
     "Boolean(document.querySelector('.gj-app-shell'))",
@@ -71,7 +74,10 @@ try {
       mobile: viewport.name === 'mobile',
     });
     await delay(100);
-    const result = await evaluate(cdp, responsiveExpression(viewport.name));
+    const result = await evaluate(
+      cdp,
+      responsiveExpression(viewport.name, inspectedRoute === '/'),
+    );
     assertViewport(viewport.name, result);
     const screenshot = await cdp.send('Page.captureScreenshot', {
       format: 'png',
@@ -164,7 +170,7 @@ async function loginDemoUser(cdp) {
   }
 }
 
-function responsiveExpression(name) {
+function responsiveExpression(name, inspectDashboard) {
   return `(() => {
     const primary = document.querySelector(
       '[aria-label="Primary navigation"]',
@@ -190,6 +196,37 @@ function responsiveExpression(name) {
       notificationTriggerPosition: getComputedStyle(
         document.querySelector('[aria-label^="Notifications"]'),
       ).position,
+      dashboard: ${inspectDashboard}
+        ? (() => {
+            const layout = document.querySelector('.gj-dashboard');
+            const primary = document.querySelector('.gj-dashboard__primary');
+            const personal = document.querySelector('.gj-dashboard__personal');
+            const feed = document.querySelector('.gj-dashboard__feed');
+            const community = document.querySelector(
+              '.gj-dashboard__community',
+            );
+            if (!layout || !primary || !personal || !feed || !community) {
+              return null;
+            }
+            const columns = getComputedStyle(layout).gridTemplateColumns
+              .split(' ')
+              .filter(Boolean).length;
+            const primaryRect = primary.getBoundingClientRect();
+            const personalRect = personal.getBoundingClientRect();
+            const feedRect = feed.getBoundingClientRect();
+            const communityRect = community.getBoundingClientRect();
+            return {
+              columns,
+              primaryTop: primaryRect.top,
+              personalTop: personalRect.top,
+              feedTop: feedRect.top,
+              communityTop: communityRect.top,
+              primaryWidth: primaryRect.width,
+              personalWidth: personalRect.width,
+              communityWidth: communityRect.width,
+            };
+          })()
+        : null,
     };
   })()`;
 }
@@ -203,6 +240,9 @@ function assertViewport(name, result) {
   }
   if (result.notificationTriggerPosition !== 'relative') {
     throw new Error(`${name} notification badge anchor is not relative`);
+  }
+  if (result.dashboard) {
+    assertDashboardViewport(name, result.dashboard);
   }
   if (name === 'desktop') {
     if (result.primaryDisplay === 'none' || result.mobileDisplay !== 'none') {
@@ -223,6 +263,46 @@ function assertViewport(name, result) {
     Math.abs(result.mobileBottom - result.viewportHeight) > 1
   ) {
     throw new Error('Mobile bottom navigation placement is incorrect');
+  }
+}
+
+function assertDashboardViewport(name, dashboard) {
+  if (name === 'desktop') {
+    if (
+      dashboard.columns !== 3 ||
+      dashboard.primaryWidth <= dashboard.personalWidth ||
+      dashboard.primaryWidth <= dashboard.communityWidth
+    ) {
+      throw new Error(
+        `Desktop Dashboard is not a center-priority three-column grid: ${JSON.stringify(
+          dashboard,
+        )}`,
+      );
+    }
+  } else if (name === 'tablet') {
+    if (
+      dashboard.columns !== 2 ||
+      dashboard.primaryTop > dashboard.personalTop ||
+      dashboard.personalTop > dashboard.feedTop ||
+      dashboard.feedTop > dashboard.communityTop
+    ) {
+      throw new Error(
+        `Tablet Dashboard does not place the center region first: ${JSON.stringify(
+          dashboard,
+        )}`,
+      );
+    }
+  } else if (
+    dashboard.columns !== 1 ||
+    dashboard.primaryTop > dashboard.personalTop ||
+    dashboard.personalTop > dashboard.feedTop ||
+    dashboard.feedTop > dashboard.communityTop
+  ) {
+    throw new Error(
+      `Mobile Dashboard is not a center-first single column: ${JSON.stringify(
+        dashboard,
+      )}`,
+    );
   }
 }
 

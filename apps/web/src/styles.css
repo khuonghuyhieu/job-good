@@ -10,7 +10,6 @@
  * hierarchy and control affordance that existed before Tailwind was enabled.
  */
 :where(
-    .dashboard-stack,
     .kudo-focus,
     .wallet-page,
     .rewards-page,
@@ -24,7 +23,6 @@
 }
 
 :where(
-    .dashboard-stack,
     .kudo-focus,
     .wallet-page,
     .rewards-page,
@@ -38,7 +36,6 @@
 }
 
 :where(
-    .dashboard-stack,
     .kudo-focus,
     .wallet-page,
     .rewards-page,
@@ -81,20 +78,11 @@
   align-items: start;
 }
 
-.dashboard-stack {
-  display: grid;
-  gap: 40px;
-  width: min(1080px, 100%);
-  margin: 0 auto;
-}
-
-.feed-section,
 .kudo-focus {
   width: min(840px, 100%);
   margin: 0 auto;
 }
 
-.feed-list,
 .comment-list {
   display: grid;
   gap: 16px;
