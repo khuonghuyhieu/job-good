@@ -184,10 +184,11 @@ export async function createRecognitionTestFixture(
   }
   if (options.realtime) {
     app.get(AuthenticatedSocketService).attach(app.getHttpServer());
-    await app.listen(0, '127.0.0.1');
-  } else {
-    await app.init();
   }
+  // Keep one real ephemeral listener for the fixture lifetime. Supertest
+  // otherwise starts and stops an unbound server per request, which races when
+  // concurrency tests send multiple requests through the same Nest app.
+  await app.listen(0, '127.0.0.1');
 
   return {
     app,
