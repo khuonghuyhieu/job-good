@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 
 import { ApiClientError } from '../api/error-adapter.js';
@@ -8,6 +8,7 @@ import { getDemoUsers, login } from '../features/auth/api.js';
 
 export function LoginPage() {
   const session = useSession();
+  const location = useLocation();
   const navigate = useNavigate();
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
   const users = useQuery({
@@ -28,6 +29,9 @@ export function LoginPage() {
   }
 
   const error = loginMutation.error;
+  const showSessionNotice =
+    isSessionRequiredNavigationState(location.state) &&
+    session.status === 'unauthenticated';
   const errorMessage =
     error instanceof ApiClientError
       ? error.code === 'EMPLOYEE_INACTIVE'
@@ -59,6 +63,15 @@ export function LoginPage() {
         <p className="mt-4">
           Sign in to open your protected recognition dashboard.
         </p>
+        {showSessionNotice && (
+          <div
+            className="session-notice my-4 rounded-gj-sm border border-gj-info bg-gj-info-subtle p-3 text-gj-info"
+            role="status"
+          >
+            Your protected session is no longer active. Sign in again to
+            continue.
+          </div>
+        )}
 
         {users.isPending && <p role="status">Loading demo employees…</p>}
         {users.isError && (
@@ -113,5 +126,16 @@ export function LoginPage() {
         {errorMessage && <div role="alert">{errorMessage}</div>}
       </section>
     </main>
+  );
+}
+
+function isSessionRequiredNavigationState(
+  state: unknown,
+): state is { reason: 'protected-session-required' } {
+  return (
+    typeof state === 'object' &&
+    state !== null &&
+    'reason' in state &&
+    state.reason === 'protected-session-required'
   );
 }
