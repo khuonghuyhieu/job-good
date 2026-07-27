@@ -31,6 +31,7 @@ type UploadItem = {
   error?: string | undefined;
   retryable?: boolean | undefined;
   statusError?: string | undefined;
+  previewUrl?: string | undefined;
 };
 
 export function AttachmentPicker({
@@ -45,11 +46,16 @@ export function AttachmentPicker({
   const [items, setItems] = useState<UploadItem[]>([]);
   const [selectionMessage, setSelectionMessage] = useState<string | null>(null);
   const mounted = useRef(true);
+  const previewUrls = useRef(new Set<string>());
   const previousAttachmentIds = useRef(attachmentIds);
   const latestAttachmentIds = useRef(attachmentIds);
   useEffect(
     () => () => {
       mounted.current = false;
+      for (const previewUrl of previewUrls.current) {
+        URL.revokeObjectURL(previewUrl);
+      }
+      previewUrls.current.clear();
     },
     [],
   );
@@ -59,7 +65,15 @@ export function AttachmentPicker({
       previousAttachmentIds.current.length > 0 &&
       attachmentIds.length === 0
     ) {
-      setItems([]);
+      setItems((current) => {
+        for (const item of current) {
+          if (item.previewUrl) {
+            URL.revokeObjectURL(item.previewUrl);
+            previewUrls.current.delete(item.previewUrl);
+          }
+        }
+        return [];
+      });
     }
     previousAttachmentIds.current = attachmentIds;
   }, [attachmentIds]);
@@ -212,6 +226,11 @@ export function AttachmentPicker({
         attachment: null,
         progress: 0,
         state: 'uploading',
+        ...((file.type.startsWith('image/') ||
+          file.type.startsWith('video/')) &&
+        typeof URL.createObjectURL === 'function'
+          ? { previewUrl: URL.createObjectURL(file) }
+          : {}),
         ...(validationError
           ? {
               state: 'failed' as const,
@@ -220,6 +239,7 @@ export function AttachmentPicker({
             }
           : {}),
       };
+      if (item.previewUrl) previewUrls.current.add(item.previewUrl);
       setItems((current) => [...current, item]);
       if (!item.error) void upload(item);
     }
@@ -236,6 +256,10 @@ export function AttachmentPicker({
       publishAttachmentIds(
         latestAttachmentIds.current.filter((id) => id !== item.attachment!.id),
       );
+    }
+    if (item.previewUrl) {
+      URL.revokeObjectURL(item.previewUrl);
+      previewUrls.current.delete(item.previewUrl);
     }
   }
 
@@ -262,7 +286,10 @@ export function AttachmentPicker({
           accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime"
           multiple
           disabled={disabled || items.length >= maximumFiles}
-          onChange={(event) => select(event.target.files)}
+          onChange={(event) => {
+            select(event.target.files);
+            event.currentTarget.value = '';
+          }}
         />
       </label>
       {selectionMessage && (
@@ -273,108 +300,140 @@ export function AttachmentPicker({
       <ul className="m-0 grid list-none gap-3 p-0">
         {items.map((item) => (
           <li
-            className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-gj-md border border-gj-border bg-white p-3 max-mobile:grid-cols-[auto_minmax(0,1fr)]"
+            className="grid min-w-0 gap-3 overflow-hidden rounded-gj-md border border-gj-border bg-white p-3"
             key={item.localId}
           >
-            <span
-              className="grid size-10 place-items-center rounded-full bg-gj-primary-100 text-gj-primary-700"
-              aria-hidden="true"
-            >
-              <AppIcon name="media" className="size-5" />
-            </span>
-            <span className="min-w-0">
-              <strong className="block truncate text-gj-sm">
-                {item.file.name}
-              </strong>
-              {item.state === 'uploading' && (
-                <span className="mt-2 grid gap-1">
-                  <span className="text-gj-xs text-gj-text-secondary">
-                    Uploading {item.progress}%
+            {item.previewUrl ? (
+              <figure className="m-0 grid gap-2">
+                {item.file.type.startsWith('image/') ? (
+                  <img
+                    className="max-h-72 w-full rounded-gj-sm bg-gj-surface-subtle object-contain"
+                    src={item.previewUrl}
+                    alt={`Preview of ${item.file.name}`}
+                  />
+                ) : (
+                  <video
+                    className="max-h-72 w-full rounded-gj-sm bg-black object-contain"
+                    src={item.previewUrl}
+                    aria-label={`Preview of ${item.file.name}`}
+                    controls
+                    preload="metadata"
+                  />
+                )}
+                <figcaption className="text-gj-xs text-gj-text-secondary">
+                  Preview — this media will be published only when you submit
+                  the Kudo.
+                </figcaption>
+              </figure>
+            ) : (
+              <span
+                className="grid size-12 place-items-center rounded-full bg-gj-primary-100 text-gj-primary-700"
+                aria-hidden="true"
+              >
+                <AppIcon name="media" className="size-5" />
+              </span>
+            )}
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 max-mobile:grid-cols-1">
+              <span className="min-w-0">
+                <strong className="block truncate text-gj-sm">
+                  {item.file.name}
+                </strong>
+                {item.state === 'uploading' && (
+                  <span className="mt-2 grid gap-1">
+                    <span className="text-gj-xs text-gj-text-secondary">
+                      Uploading {item.progress}%
+                    </span>
+                    <progress
+                      className="h-2 w-full accent-gj-primary-600"
+                      value={item.progress}
+                      max={100}
+                    >
+                      {item.progress}%
+                    </progress>
                   </span>
-                  <progress
-                    className="h-2 w-full accent-gj-primary-600"
-                    value={item.progress}
-                    max={100}
+                )}
+                {item.state === 'processing' && (
+                  <span className="block text-gj-xs text-gj-info" role="status">
+                    Video processing…
+                  </span>
+                )}
+                {item.statusError && (
+                  <span
+                    className="block text-gj-xs text-gj-danger"
+                    role="alert"
                   >
-                    {item.progress}%
-                  </progress>
-                </span>
-              )}
-              {item.state === 'processing' && (
-                <span className="block text-gj-xs text-gj-info" role="status">
-                  Video processing…
-                </span>
-              )}
-              {item.statusError && (
-                <span className="block text-gj-xs text-gj-danger" role="alert">
-                  {item.statusError}
-                </span>
-              )}
-              {item.state === 'ready' && (
-                <span
-                  className="block text-gj-xs text-gj-success"
-                  role="status"
-                >
-                  Ready
-                </span>
-              )}
-              {item.error && (
-                <span className="block text-gj-xs text-gj-danger" role="alert">
-                  {item.error}
-                </span>
-              )}
-            </span>
-            <span className="flex flex-wrap justify-end gap-2 max-mobile:col-span-2">
-              {item.state === 'failed' && item.retryable && (
+                    {item.statusError}
+                  </span>
+                )}
+                {item.state === 'ready' && (
+                  <span
+                    className="block text-gj-xs text-gj-success"
+                    role="status"
+                  >
+                    Ready
+                  </span>
+                )}
+                {item.error && (
+                  <span
+                    className="block text-gj-xs text-gj-danger"
+                    role="alert"
+                  >
+                    {item.error}
+                  </span>
+                )}
+              </span>
+              <span className="flex flex-wrap justify-end gap-2 max-mobile:justify-start">
+                {item.state === 'failed' && item.retryable && (
+                  <Button
+                    size="small"
+                    variant="secondary"
+                    type="button"
+                    onClick={() => {
+                      const previousId = item.attachment?.id;
+                      const remainingIds = previousId
+                        ? latestAttachmentIds.current.filter(
+                            (id) => id !== previousId,
+                          )
+                        : latestAttachmentIds.current;
+                      void (async () => {
+                        if (item.attachment && !item.attachment.ownerId) {
+                          await removeMedia(item.attachment.id).catch(
+                            () => undefined,
+                          );
+                        }
+                        publishAttachmentIds(remainingIds);
+                        const retryItem = {
+                          ...item,
+                          attachment: null,
+                          progress: 0,
+                          state: 'uploading' as const,
+                          error: undefined,
+                          retryable: undefined,
+                        };
+                        setItems((current) =>
+                          current.map((candidate) =>
+                            candidate.localId === item.localId
+                              ? retryItem
+                              : candidate,
+                          ),
+                        );
+                        await upload(retryItem);
+                      })();
+                    }}
+                  >
+                    Retry upload
+                  </Button>
+                )}
                 <Button
                   size="small"
-                  variant="secondary"
+                  variant="ghost"
                   type="button"
-                  onClick={() => {
-                    const previousId = item.attachment?.id;
-                    const remainingIds = previousId
-                      ? latestAttachmentIds.current.filter(
-                          (id) => id !== previousId,
-                        )
-                      : latestAttachmentIds.current;
-                    void (async () => {
-                      if (item.attachment && !item.attachment.ownerId) {
-                        await removeMedia(item.attachment.id).catch(
-                          () => undefined,
-                        );
-                      }
-                      publishAttachmentIds(remainingIds);
-                      const retryItem = {
-                        ...item,
-                        attachment: null,
-                        progress: 0,
-                        state: 'uploading' as const,
-                        error: undefined,
-                        retryable: undefined,
-                      };
-                      setItems((current) =>
-                        current.map((candidate) =>
-                          candidate.localId === item.localId
-                            ? retryItem
-                            : candidate,
-                        ),
-                      );
-                      await upload(retryItem);
-                    })();
-                  }}
+                  onClick={() => void remove(item)}
                 >
-                  Retry upload
+                  Remove {item.file.name}
                 </Button>
-              )}
-              <Button
-                size="small"
-                variant="ghost"
-                type="button"
-                onClick={() => void remove(item)}
-              >
-                Remove {item.file.name}
-              </Button>
-            </span>
+              </span>
+            </div>
           </li>
         ))}
       </ul>

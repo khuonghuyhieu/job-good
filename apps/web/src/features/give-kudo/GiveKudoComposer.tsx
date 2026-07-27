@@ -4,7 +4,8 @@ import {
   useQueryClient,
   type QueryClient,
 } from '@tanstack/react-query';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import type {
   ColleagueSearchResponse,
   CoreValuesResponse,
@@ -35,6 +36,7 @@ import {
   TextArea,
   TextInput,
 } from '../../shared/ui/index.js';
+import { useDialogAccessibility } from '../../shared/ui/use-dialog-accessibility.js';
 
 type Draft = {
   receiverId: string;
@@ -78,6 +80,53 @@ const emptyDraft: Draft = {
 };
 
 const pointOptions = [10, 20, 30, 40, 50] as const;
+
+function ComposerSurface({
+  dialog,
+  onClose,
+  children,
+  dashboard,
+}: {
+  dialog: boolean;
+  onClose: () => void;
+  children: ReactNode;
+  dashboard: boolean;
+}) {
+  const surface = useRef<HTMLElement>(null);
+  useDialogAccessibility({
+    open: dialog,
+    containerRef: surface,
+    onClose,
+  });
+  const content = (
+    <section
+      ref={surface}
+      className={
+        dialog
+          ? 'min-w-0 max-h-[calc(100vh-2rem)] w-full max-w-3xl overflow-y-auto rounded-gj-lg border border-gj-border bg-white p-[clamp(1.25rem,3vw,2rem)] shadow-gj-popover max-mobile:max-h-none max-mobile:h-full max-mobile:rounded-none'
+          : 'min-w-0 rounded-gj-lg border border-gj-border bg-white p-[clamp(1.25rem,3vw,2rem)] shadow-gj-card'
+      }
+      aria-labelledby="give-kudo-title"
+      data-dashboard-composer={dashboard || undefined}
+      {...(dialog ? { role: 'dialog', 'aria-modal': true, tabIndex: -1 } : {})}
+    >
+      {children}
+    </section>
+  );
+  return dialog
+    ? createPortal(
+        <div
+          className="fixed inset-0 z-40 grid place-items-center bg-gj-overlay p-4 max-mobile:p-0"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) onClose();
+          }}
+        >
+          {content}
+        </div>,
+        document.body,
+      )
+    : content;
+}
 
 function newIdempotencyKey(): string {
   return crypto.randomUUID();
@@ -281,12 +330,6 @@ export function GiveKudoComposer({
     },
   });
 
-  useEffect(() => {
-    if (expanded && compact) {
-      document.getElementById('colleague-search')?.focus();
-    }
-  }, [compact, expanded]);
-
   if (session.status !== 'authenticated') {
     return null;
   }
@@ -304,6 +347,11 @@ export function GiveKudoComposer({
     budgetQuery.data !== undefined &&
     budgetQuery.data.givingBudget.remaining < 10;
   const fieldsLocked = mutation.isPending || recoveryCommand !== null;
+  const closeComposer = () => {
+    if (fieldsLocked) return;
+    setExpanded(false);
+    requestAnimationFrame(() => compactTrigger.current?.focus());
+  };
 
   function updateDraft<Field extends keyof Draft>(
     field: Field,
@@ -351,10 +399,10 @@ export function GiveKudoComposer({
         />
       )}
 
-      <section
-        className="min-w-0 rounded-gj-lg border border-gj-border bg-white p-[clamp(1.25rem,3vw,2rem)] shadow-gj-card"
-        aria-labelledby="give-kudo-title"
-        data-dashboard-composer={!showBudgetSummary || undefined}
+      <ComposerSurface
+        dialog={compact && expanded}
+        onClose={closeComposer}
+        dashboard={!showBudgetSummary}
       >
         {success && (
           <div
@@ -415,8 +463,7 @@ export function GiveKudoComposer({
                   aria-expanded="true"
                   aria-controls="give-kudo-form"
                   onClick={() => {
-                    setExpanded(false);
-                    setTimeout(() => compactTrigger.current?.focus(), 0);
+                    closeComposer();
                   }}
                 >
                   Close
@@ -722,7 +769,7 @@ export function GiveKudoComposer({
             </form>
           </>
         )}
-      </section>
+      </ComposerSurface>
     </div>
   );
 }

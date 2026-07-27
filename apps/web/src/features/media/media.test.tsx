@@ -49,6 +49,72 @@ afterEach(() => {
 });
 
 describe('Phase 7 media UI', () => {
+  it('shows a bounded local image preview and revokes it when removed', async () => {
+    const createObjectUrl = vi.fn(() => 'blob:proof-preview');
+    const revokeObjectUrl = vi.fn();
+    Object.defineProperties(URL, {
+      createObjectURL: { configurable: true, value: createObjectUrl },
+      revokeObjectURL: { configurable: true, value: revokeObjectUrl },
+    });
+    mediaApi.createUploadIntent.mockRejectedValue(new Error('offline'));
+    const longName = `${'recognition-proof-'.repeat(12)}.png`;
+
+    render(
+      <AttachmentPicker
+        attachmentIds={[]}
+        disabled={false}
+        onChange={vi.fn()}
+      />,
+    );
+    await userEvent.upload(
+      screen.getByLabelText('Add image or video'),
+      new File(['image'], longName, { type: 'image/png' }),
+    );
+
+    expect(
+      await screen.findByRole('img', { name: `Preview of ${longName}` }),
+    ).toHaveAttribute('src', 'blob:proof-preview');
+    expect(
+      screen.getByText(/this media will be published only when you submit/i),
+    ).toBeVisible();
+    expect(screen.getByText(longName)).toHaveClass('truncate');
+    expect(screen.getByText(longName).closest('li')).toHaveClass(
+      'overflow-hidden',
+    );
+    await userEvent.click(
+      screen.getByRole('button', { name: `Remove ${longName}` }),
+    );
+    expect(revokeObjectUrl).toHaveBeenCalledWith('blob:proof-preview');
+  });
+
+  it('shows a playable local video preview before the Kudo is submitted', async () => {
+    Object.defineProperties(URL, {
+      createObjectURL: {
+        configurable: true,
+        value: vi.fn(() => 'blob:video-preview'),
+      },
+      revokeObjectURL: { configurable: true, value: vi.fn() },
+    });
+    mediaApi.createUploadIntent.mockRejectedValue(new Error('offline'));
+
+    render(
+      <AttachmentPicker
+        attachmentIds={[]}
+        disabled={false}
+        onChange={vi.fn()}
+      />,
+    );
+    await userEvent.upload(
+      screen.getByLabelText('Add image or video'),
+      new File(['video'], 'celebration.mp4', { type: 'video/mp4' }),
+    );
+
+    const preview = await screen.findByLabelText('Preview of celebration.mp4');
+    expect(preview).toHaveAttribute('src', 'blob:video-preview');
+    expect(preview).toHaveAttribute('controls');
+    expect(preview).toHaveAttribute('preload', 'metadata');
+  });
+
   it('uploads the file directly, reports progress, and exposes only the server attachment ID', async () => {
     mediaApi.createUploadIntent.mockResolvedValue({
       attachment: attachment('uploading'),

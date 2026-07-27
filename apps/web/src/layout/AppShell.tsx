@@ -68,7 +68,7 @@ export function AppShell() {
         </div>
       )}
       <main
-        className="gj-shell-main min-h-[calc(100vh-5.75rem)] p-[clamp(1.5rem,5vw,4.5rem)] max-mobile:min-h-[calc(100vh-4.5rem)] max-mobile:px-4 max-mobile:pt-5 max-mobile:pb-[calc(5.5rem+env(safe-area-inset-bottom))]"
+        className="gj-shell-main min-h-[calc(100vh-5.75rem)] p-[clamp(1.5rem,5vw,1.5rem)] max-mobile:min-h-[calc(100vh-4.5rem)] max-mobile:px-4 max-mobile:pt-5 max-mobile:pb-[calc(5.5rem+env(safe-area-inset-bottom))]"
         id="main-content"
         tabIndex={-1}
       >

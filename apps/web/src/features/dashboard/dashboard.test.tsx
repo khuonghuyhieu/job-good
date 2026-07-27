@@ -178,7 +178,10 @@ describe('VR-3 Dashboard', () => {
     const open = screen.getByRole('button', { name: 'Give a Kudo' });
     expect(open).toHaveAttribute('aria-expanded', 'false');
     await userEvent.click(open);
-    expect(screen.getByLabelText('Find a colleague')).toHaveFocus();
+    expect(screen.getByRole('dialog', { name: 'Give a Kudo' })).toBeVisible();
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Close' })).toHaveFocus(),
+    );
     await userEvent.type(screen.getByLabelText('Find a colleague'), 'Binh');
     await userEvent.click(screen.getByRole('button', { name: 'Close' }));
     const reopenedTrigger = screen.getByRole('button', {
@@ -186,6 +189,7 @@ describe('VR-3 Dashboard', () => {
     });
     await waitFor(() => expect(reopenedTrigger).toHaveFocus());
     await userEvent.click(reopenedTrigger);
+    expect(screen.getByRole('dialog', { name: 'Give a Kudo' })).toBeVisible();
     expect(screen.getByLabelText('Find a colleague')).toHaveValue('Binh');
   });
 
