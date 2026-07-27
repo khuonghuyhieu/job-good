@@ -40,6 +40,8 @@ jobs:
       DATABASE_URL: postgresql://good_job:local-development-only@localhost:5432/good_job?schema=public
       REDIS_URL: redis://localhost:6379
       WEB_ORIGIN: http://localhost:8080
+      VITE_API_URL: http://localhost:3000
+      VITE_WEBSOCKET_PATH: /socket.io
       OBJECT_STORAGE_ENDPOINT: http://localhost:9000
       OBJECT_STORAGE_PUBLIC_ENDPOINT: http://localhost:9000
       OBJECT_STORAGE_REGION: us-east-1
@@ -95,8 +97,55 @@ jobs:
       - name: Verify repeatable seed
         run: pnpm db:seed
       - run: pnpm test:integration
-      - run: pnpm test:e2e
+      - name: Prepare clean E2E database
+        run: pnpm db:reset:test && pnpm db:seed
       - run: pnpm build
+      - name: Run E2E against built applications
+        run: |
+          set -a
+          source .env.example
+          set +a
+
+          node apps/api/dist/main.js > /tmp/good-job-api.log 2>&1 &
+          api_process_id=$!
+          node apps/worker/dist/main.js > /tmp/good-job-worker.log 2>&1 &
+          worker_process_id=$!
+          (
+            cd apps/web
+            exec ./node_modules/.bin/vite preview --host 127.0.0.1 --port 8080
+          ) > /tmp/good-job-web.log 2>&1 &
+          web_process_id=$!
+
+          cleanup() {
+            kill "$api_process_id" "$worker_process_id" "$web_process_id" 2>/dev/null || true
+          }
+          show_logs() {
+            echo "API log"
+            cat /tmp/good-job-api.log
+            echo "Worker log"
+            cat /tmp/good-job-worker.log
+            echo "Web log"
+            cat /tmp/good-job-web.log
+          }
+          trap cleanup EXIT
+
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:3000/health/ready >/dev/null \
+              && curl --fail --silent http://127.0.0.1:3001/health/ready >/dev/null \
+              && curl --fail --silent http://127.0.0.1:8080/ >/dev/null; then
+              break
+            fi
+            if [ "$attempt" = 30 ]; then
+              show_logs
+              exit 1
+            fi
+            sleep 1
+          done
+
+          if ! pnpm test:e2e; then
+            show_logs
+            exit 1
+          fi
       - run: docker compose config --quiet
       - name: Build production images
         run: docker compose build api worker web
