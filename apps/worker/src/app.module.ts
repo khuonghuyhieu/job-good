@@ -18,7 +18,10 @@ export class AppModule {
       providers: [
         { provide: CONFIG, useValue: config },
         QueueHealthService,
-        FfprobeService,
+        {
+          provide: FfprobeService,
+          useFactory: () => new FfprobeService(config.MEDIA_PROBE_TIMEOUT_MS),
+        },
         WorkerObjectStorageService,
         MediaWorkerService,
         OutboxPublisherService,

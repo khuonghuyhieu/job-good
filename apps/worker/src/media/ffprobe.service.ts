@@ -4,6 +4,16 @@ import { promisify } from 'node:util';
 import { Injectable } from '@nestjs/common';
 
 const execute = promisify(execFile);
+type ExecuteCommand = (
+  file: string,
+  arguments_: string[],
+  options: { timeout: number; maxBuffer: number; windowsHide: boolean },
+) => Promise<{ stdout: string }>;
+
+const executeCommand: ExecuteCommand = async (file, arguments_, options) => {
+  const result = await execute(file, arguments_, options);
+  return { stdout: String(result.stdout) };
+};
 
 export type VideoProbe = {
   durationSeconds: number;
@@ -13,16 +23,29 @@ export type VideoProbe = {
 
 @Injectable()
 export class FfprobeService {
+  constructor(
+    private readonly timeoutMs = 30_000,
+    private readonly run: ExecuteCommand = executeCommand,
+  ) {}
+
   async probeVideo(url: string): Promise<VideoProbe> {
-    const { stdout } = await execute('ffprobe', [
-      '-v',
-      'error',
-      '-show_entries',
-      'format=format_name,duration:stream=codec_type,codec_name',
-      '-of',
-      'json',
-      url,
-    ]);
+    const { stdout } = await this.run(
+      'ffprobe',
+      [
+        '-v',
+        'error',
+        '-show_entries',
+        'format=format_name,duration:stream=codec_type,codec_name',
+        '-of',
+        'json',
+        url,
+      ],
+      {
+        timeout: this.timeoutMs,
+        maxBuffer: 256 * 1024,
+        windowsHide: true,
+      },
+    );
     const parsed = JSON.parse(stdout) as {
       format?: { duration?: string; format_name?: string };
       streams?: Array<{ codec_type?: string; codec_name?: string }>;
@@ -43,6 +66,10 @@ export class FfprobeService {
   }
 
   async ping(): Promise<void> {
-    await execute('ffprobe', ['-version']);
+    await this.run('ffprobe', ['-version'], {
+      timeout: Math.min(this.timeoutMs, 5000),
+      maxBuffer: 64 * 1024,
+      windowsHide: true,
+    });
   }
 }

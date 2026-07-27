@@ -17,6 +17,10 @@ const validEnvironment = {
   SESSION_TRUST_PROXY: 'false',
   SESSION_REDIS_PREFIX: 'good-job:test-session:',
   DEMO_ORGANIZATION_SLUG: 'amanotes-demo',
+  API_MAX_JSON_BYTES: '131072',
+  RATE_LIMIT_LOGIN_MAX: '10',
+  RATE_LIMIT_COMMAND_MAX: '60',
+  RATE_LIMIT_WINDOW_SECONDS: '60',
   OBJECT_STORAGE_ENDPOINT: 'http://localhost:9000',
   OBJECT_STORAGE_REGION: 'us-east-1',
   OBJECT_STORAGE_BUCKET: 'good-job-media',
@@ -26,6 +30,7 @@ const validEnvironment = {
   MEDIA_MAX_IMAGE_BYTES: '10485760',
   MEDIA_MAX_VIDEO_BYTES: '209715200',
   MEDIA_MAX_VIDEO_DURATION_SECONDS: '180',
+  MEDIA_PROBE_TIMEOUT_MS: '30000',
   WEBSOCKET_PATH: '/socket.io',
   ORGANIZATION_TIMEZONE: 'Asia/Ho_Chi_Minh',
   SEED_BUSINESS_MONTH: '2026-07',
@@ -50,6 +55,27 @@ describe('parseServerConfig', () => {
       parseServerConfig({
         ...validEnvironment,
         MEDIA_MAX_VIDEO_DURATION_SECONDS: '181',
+      }),
+    ).toThrow();
+  });
+
+  it('bounds JSON bodies, rate windows, and media probe execution', () => {
+    expect(() =>
+      parseServerConfig({
+        ...validEnvironment,
+        API_MAX_JSON_BYTES: '1048577',
+      }),
+    ).toThrow();
+    expect(() =>
+      parseServerConfig({
+        ...validEnvironment,
+        RATE_LIMIT_WINDOW_SECONDS: '3601',
+      }),
+    ).toThrow();
+    expect(() =>
+      parseServerConfig({
+        ...validEnvironment,
+        MEDIA_PROBE_TIMEOUT_MS: '120001',
       }),
     ).toThrow();
   });
@@ -102,7 +128,74 @@ describe('parseServerConfig', () => {
         NODE_ENV: 'production',
         SESSION_COOKIE_SECURE: 'true',
         SESSION_TRUST_PROXY: 'true',
+        WEB_ORIGIN: 'https://good-job.example',
       }).SESSION_TRUST_PROXY,
     ).toBe(true);
+  });
+
+  it('rejects documented local secrets and insecure origins in production', () => {
+    expect(() =>
+      parseServerConfig({
+        ...validEnvironment,
+        NODE_ENV: 'production',
+        SESSION_COOKIE_SECURE: 'true',
+        WEB_ORIGIN: 'https://good-job.example',
+        SESSION_SECRET: 'replace-with-at-least-32-characters',
+      }),
+    ).toThrow(/SESSION_SECRET/u);
+    expect(() =>
+      parseServerConfig({
+        ...validEnvironment,
+        NODE_ENV: 'production',
+        SESSION_COOKIE_SECURE: 'true',
+        WEB_ORIGIN: 'https://good-job.example',
+        SESSION_SECRET: 'generate-a-random-secret-of-at-least-32-characters',
+      }),
+    ).toThrow(/SESSION_SECRET/u);
+    expect(() =>
+      parseServerConfig({
+        ...validEnvironment,
+        NODE_ENV: 'production',
+        SESSION_COOKIE_SECURE: 'true',
+        WEB_ORIGIN: 'https://good-job.example',
+        OBJECT_STORAGE_SECRET_KEY: 'local-development-only',
+      }),
+    ).toThrow(/OBJECT_STORAGE_SECRET_KEY/u);
+    expect(() =>
+      parseServerConfig({
+        ...validEnvironment,
+        NODE_ENV: 'production',
+        SESSION_COOKIE_SECURE: 'true',
+        WEB_ORIGIN: 'https://good-job.example',
+        OBJECT_STORAGE_SECRET_KEY: 'generate-and-configure-in-secret-manager',
+      }),
+    ).toThrow(/OBJECT_STORAGE_SECRET_KEY/u);
+    expect(() =>
+      parseServerConfig({
+        ...validEnvironment,
+        NODE_ENV: 'production',
+        SESSION_COOKIE_SECURE: 'true',
+        WEB_ORIGIN: 'https://good-job.example',
+        OBJECT_STORAGE_ACCESS_KEY: 'configure-in-secret-manager',
+      }),
+    ).toThrow(/OBJECT_STORAGE_ACCESS_KEY/u);
+    expect(() =>
+      parseServerConfig({
+        ...validEnvironment,
+        NODE_ENV: 'production',
+        SESSION_COOKIE_SECURE: 'true',
+        WEB_ORIGIN: 'https://good-job.example',
+        DATABASE_URL:
+          'postgresql://good_job:generate-a-password@postgres.example.com:5432/good_job',
+      }),
+    ).toThrow(/DATABASE_URL/u);
+    expect(() =>
+      parseServerConfig({
+        ...validEnvironment,
+        NODE_ENV: 'production',
+        SESSION_COOKIE_SECURE: 'true',
+        WEB_ORIGIN: 'http://good-job.example',
+      }),
+    ).toThrow(/WEB_ORIGIN/u);
   });
 });

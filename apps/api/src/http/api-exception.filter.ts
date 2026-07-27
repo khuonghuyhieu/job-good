@@ -64,6 +64,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
       [HttpStatus.BAD_REQUEST]: 'VALIDATION_ERROR',
       [HttpStatus.FORBIDDEN]: 'FORBIDDEN',
       [HttpStatus.NOT_FOUND]: 'RESOURCE_NOT_FOUND',
+      [HttpStatus.PAYLOAD_TOO_LARGE]: 'REQUEST_TOO_LARGE',
       [HttpStatus.TOO_MANY_REQUESTS]: 'RATE_LIMITED',
       [HttpStatus.SERVICE_UNAVAILABLE]: 'DEPENDENCY_UNAVAILABLE',
     };

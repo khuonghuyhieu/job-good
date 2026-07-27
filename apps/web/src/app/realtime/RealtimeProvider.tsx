@@ -35,7 +35,7 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
       return;
     }
     const nextSocket = io(config.VITE_API_URL, {
-      path: '/socket.io',
+      path: config.VITE_WEBSOCKET_PATH,
       transports: ['websocket'],
       withCredentials: true,
       reconnection: true,

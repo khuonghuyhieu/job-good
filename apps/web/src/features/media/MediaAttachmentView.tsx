@@ -30,8 +30,11 @@ export function MediaAttachmentView({
   return attachment.mediaType === 'image' ? (
     <img src={attachment.contentUrl} alt={attachment.originalName} />
   ) : (
-    <video controls preload="metadata" src={attachment.contentUrl}>
-      <track kind="captions" />
-    </video>
+    <video
+      controls
+      preload="metadata"
+      src={attachment.contentUrl}
+      aria-label={attachment.originalName}
+    />
   );
 }

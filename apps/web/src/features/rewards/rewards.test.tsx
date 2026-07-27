@@ -150,6 +150,27 @@ describe('Phase 6 Rewards frontend', () => {
     });
   });
 
+  it('moves focus into the confirmation dialog and closes it with Escape', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => response(detail)),
+    );
+    renderPage(
+      <Routes>
+        <Route path="/rewards/:rewardId" element={<RewardDetailPage />} />
+      </Routes>,
+      `/rewards/${rewardId}`,
+    );
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Redeem reward' }),
+    );
+    expect(
+      screen.getByRole('button', { name: 'Confirm redemption' }),
+    ).toHaveFocus();
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
   it('uses the same idempotency key while checking an unknown response', async () => {
     const keys: string[] = [];
     let calls = 0;

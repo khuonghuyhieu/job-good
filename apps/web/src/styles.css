@@ -65,8 +65,20 @@
 
 .current-user {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 1rem;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible {
+  outline: 3px solid #2563eb;
+  outline-offset: 3px;
 }
 
 * {
@@ -140,6 +152,8 @@ body {
 .dashboard-stack {
   display: grid;
   gap: 40px;
+  width: min(1080px, 100%);
+  margin: 0 auto;
 }
 
 .feed-section,
@@ -162,6 +176,29 @@ body {
   border: 1px solid #e3e9f2;
   border-radius: 18px;
   background: #ffffff;
+}
+
+.feed-card img,
+.feed-card video,
+.kudo-focus img,
+.kudo-focus video {
+  display: block;
+  width: 100%;
+  max-height: 32rem;
+  margin-block: 1rem;
+  border-radius: 0.75rem;
+  object-fit: contain;
+  background: #eef2f7;
+}
+
+.confirmation-dialog {
+  max-width: 36rem;
+  margin-block: 1rem;
+  padding: 1.25rem;
+  border: 2px solid #5846d6;
+  border-radius: 1rem;
+  background: #fff;
+  box-shadow: 0 1rem 3rem rgb(25 35 45 / 16%);
 }
 
 .feed-card h2,
@@ -354,7 +391,11 @@ h1 {
   }
 
   .topbar {
+    align-items: flex-start;
+    min-height: auto;
     padding: 0 20px;
+    padding-block: 12px;
+    gap: 12px;
   }
 
   .recognition-grid {
@@ -363,6 +404,20 @@ h1 {
 
   .current-user > span {
     display: none;
+  }
+
+  .current-user {
+    gap: 10px;
+    font-size: 0.9rem;
+  }
+
+  .main-content {
+    padding: 20px 16px 40px;
+  }
+
+  .history-item {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 

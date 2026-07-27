@@ -60,7 +60,12 @@ export class MediaWorkerService implements OnModuleInit, OnApplicationShutdown {
     });
     this.worker.on('failed', (job, error) => {
       this.logger.warn(
-        `Media job ${job?.id ?? 'unknown'} failed: ${error.message}`,
+        JSON.stringify({
+          event: 'media.job.failed',
+          jobId: job?.id ?? 'unknown',
+          attachmentId: job?.data.attachmentId ?? null,
+          errorName: error.name,
+        }),
       );
     });
   }

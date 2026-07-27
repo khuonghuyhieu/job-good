@@ -28,7 +28,7 @@ export function AppShell() {
           </span>
           <span>Good Job</span>
         </a>
-        <div className="current-user">
+        <nav className="current-user" aria-label="Account navigation">
           <Link to="/wallet">Wallet</Link>
           <Link to="/rewards">Rewards</Link>
           <NotificationIndicator />
@@ -43,7 +43,7 @@ export function AppShell() {
           >
             {logoutMutation.isPending ? 'Signing out…' : 'Sign out'}
           </button>
-        </div>
+        </nav>
       </header>
       {logoutMutation.isError && (
         <div role="alert">Sign out failed. Please try again.</div>

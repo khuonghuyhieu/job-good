@@ -6,6 +6,7 @@ import { CommentList } from '../features/comments/CommentList.js';
 import { getKudoDetail } from '../features/feed/api.js';
 import { feedQueryKeys } from '../features/feed/query-keys.js';
 import { ReactionBar } from '../features/reactions/ReactionBar.js';
+import { MediaAttachmentView } from '../features/media/MediaAttachmentView.js';
 
 export function KudoFocusPage() {
   const { kudoId = '' } = useParams();
@@ -39,6 +40,9 @@ export function KudoFocusPage() {
       <p>
         <strong>{kudo.points} points</strong>
       </p>
+      {kudo.attachments.map((attachment) => (
+        <MediaAttachmentView key={attachment.id} attachmentId={attachment.id} />
+      ))}
       <ReactionBar kudoId={kudo.id} reactions={kudo.reactions} />
       <h2>Comments</h2>
       <CommentList kudoId={kudo.id} comments={kudo.comments} />

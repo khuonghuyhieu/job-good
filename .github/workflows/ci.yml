@@ -39,6 +39,14 @@ jobs:
       CI: true
       DATABASE_URL: postgresql://good_job:local-development-only@localhost:5432/good_job?schema=public
       REDIS_URL: redis://localhost:6379
+      WEB_ORIGIN: http://localhost:8080
+      OBJECT_STORAGE_ENDPOINT: http://localhost:9000
+      OBJECT_STORAGE_PUBLIC_ENDPOINT: http://localhost:9000
+      OBJECT_STORAGE_REGION: us-east-1
+      OBJECT_STORAGE_BUCKET: good-job-media
+      OBJECT_STORAGE_ACCESS_KEY: good-job-local
+      OBJECT_STORAGE_SECRET_KEY: local-development-only
+      OBJECT_STORAGE_FORCE_PATH_STYLE: true
       ORGANIZATION_TIMEZONE: Asia/Ho_Chi_Minh
       SEED_BUSINESS_MONTH: 2026-07
 
@@ -54,8 +62,30 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      - name: Start MinIO
+        run: >-
+          docker run --detach --name good-job-ci-minio
+          --publish 9000:9000
+          --env MINIO_ROOT_USER=good-job-local
+          --env MINIO_ROOT_PASSWORD=local-development-only
+          minio/minio:RELEASE.2025-09-07T16-13-09Z
+          server /data
+      - name: Wait for and initialize MinIO
+        run: |
+          for attempt in {1..30}; do
+            curl --fail --silent http://localhost:9000/minio/health/live && break
+            if [ "$attempt" = 30 ]; then docker logs good-job-ci-minio; exit 1; fi
+            sleep 1
+          done
+          docker run --rm --network host \
+            --entrypoint /bin/sh \
+            minio/mc:RELEASE.2025-08-13T08-35-41Z \
+            -ec 'mc alias set local http://localhost:9000 good-job-local local-development-only && mc mb --ignore-existing local/good-job-media && mc anonymous set none local/good-job-media'
+      - name: Install media probe
+        run: sudo apt-get update && sudo apt-get install --yes ffmpeg
       - run: pnpm install --frozen-lockfile
       - run: pnpm db:generate
+      - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
@@ -65,5 +95,8 @@ jobs:
       - name: Verify repeatable seed
         run: pnpm db:seed
       - run: pnpm test:integration
+      - run: pnpm test:e2e
       - run: pnpm build
       - run: docker compose config --quiet
+      - name: Build production images
+        run: docker compose build api worker web

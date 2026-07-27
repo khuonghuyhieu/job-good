@@ -325,6 +325,7 @@ model Notification {
 
   @@unique([eventId, recipientId])
   @@index([recipientId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([recipientId, readAt])
   @@map("notifications")
 }
 

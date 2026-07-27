@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import { ApiClientError } from '../api/error-adapter.js';
@@ -29,6 +29,8 @@ export function RewardDetailPage() {
   const { rewardId = '' } = useParams();
   const queryClient = useQueryClient();
   const submitting = useRef(false);
+  const confirmButton = useRef<HTMLButtonElement>(null);
+  const dialog = useRef<HTMLDivElement>(null);
   const [confirming, setConfirming] = useState(false);
   const [recovery, setRecovery] = useState<Attempt | null>(null);
   const detail = useQuery({
@@ -71,6 +73,33 @@ export function RewardDetailPage() {
     redemption.mutate(attempt ?? { rewardId, key: crypto.randomUUID() });
   };
 
+  useEffect(() => {
+    if (!confirming) return;
+    confirmButton.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !redemption.isPending && !recovery) {
+        setConfirming(false);
+      }
+      if (event.key !== 'Tab' || !dialog.current) return;
+      const controls = Array.from(
+        dialog.current.querySelectorAll<HTMLElement>(
+          'button:not(:disabled), [href], input:not(:disabled)',
+        ),
+      );
+      const first = controls.at(0);
+      const last = controls.at(-1);
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [confirming, recovery, redemption.isPending]);
+
   if (detail.isPending) return <p role="status">Loading reward…</p>;
   if (detail.isError || !detail.data) {
     return (
@@ -100,7 +129,13 @@ export function RewardDetailPage() {
         </button>
       )}
       {confirming && !redemption.data && (
-        <div role="dialog" aria-modal="true" aria-labelledby="redeem-title">
+        <div
+          ref={dialog}
+          className="confirmation-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="redeem-title"
+        >
           <h2 id="redeem-title">Confirm redemption</h2>
           <p>
             Redeem {reward.name} for {reward.costPoints} Reward Points?
@@ -111,6 +146,7 @@ export function RewardDetailPage() {
             will confirm your latest balance.
           </p>
           <button
+            ref={confirmButton}
             type="button"
             disabled={redemption.isPending}
             onClick={() => submit(recovery ?? undefined)}

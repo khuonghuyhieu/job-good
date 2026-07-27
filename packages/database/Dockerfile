@@ -3,7 +3,10 @@ WORKDIR /workspace
 RUN corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc tsconfig.base.json ./
 COPY packages/database/package.json packages/database/package.json
-RUN pnpm install --frozen-lockfile --filter @good-job/database...
+RUN --mount=type=cache,id=good-job-corepack,target=/root/.cache/node/corepack,sharing=locked \
+    --mount=type=cache,id=good-job-pnpm,target=/pnpm/store,sharing=locked \
+    pnpm config set store-dir /pnpm/store && \
+    pnpm install --frozen-lockfile --filter @good-job/database...
 COPY packages/database packages/database
 RUN pnpm db:generate
 
