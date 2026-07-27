@@ -3,25 +3,50 @@ import type { WalletLedgerEntry } from '@good-job/contracts';
 import { Link } from 'react-router-dom';
 
 import { getWalletLedger, walletLedgerQueryKey } from './api.js';
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  ErrorState,
+  Heading,
+  Skeleton,
+} from '../../shared/ui/index.js';
 
 function PointHistoryItem({ entry }: { entry: WalletLedgerEntry }) {
   const sign = entry.direction === 'credit' ? '+' : '−';
   return (
-    <li className="history-item">
-      <div>
-        <strong>
+    <li className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-b border-gj-border py-5 last:border-b-0 max-mobile:grid-cols-1">
+      <div className="min-w-0">
+        <strong
+          className={
+            entry.direction === 'credit' ? 'text-gj-success' : 'text-gj-danger'
+          }
+        >
           {sign}
           {entry.amount} Reward Points
         </strong>
-        <p>{entry.source?.label ?? entry.description ?? 'Point adjustment'}</p>
-        <time dateTime={entry.createdAt}>
+        <p className="mt-1 mb-0 text-gj-sm text-gj-text">
+          {entry.source?.label ?? entry.description ?? 'Point adjustment'}
+        </p>
+        <time
+          className="mt-1 block text-gj-xs text-gj-text-muted"
+          dateTime={entry.createdAt}
+        >
           {new Date(entry.createdAt).toLocaleString()}
         </time>
       </div>
-      <div>
-        <span>Balance after: {entry.balanceAfter}</span>
+      <div className="grid justify-items-end gap-2 max-mobile:justify-items-start">
+        <Badge tone={entry.direction === 'credit' ? 'success' : 'danger'}>
+          Balance after: {entry.balanceAfter}
+        </Badge>
         {entry.source?.type === 'kudo' && (
-          <Link to={`/kudos/${entry.source.kudoId}`}>View related Kudo</Link>
+          <Link
+            className="min-h-11 content-center font-bold text-gj-primary-700"
+            to={`/kudos/${entry.source.kudoId}`}
+          >
+            View related Kudo
+          </Link>
         )}
       </div>
     </li>
@@ -37,16 +62,24 @@ export function PointHistory() {
   });
 
   if (query.isPending) {
-    return <p role="status">Loading Point History…</p>;
+    return (
+      <Card as="section" role="status" aria-label="Loading Point History">
+        <Skeleton className="mb-5 h-8 w-48" />
+        <Skeleton className="h-24 w-full" />
+        <span className="sr-only" role="status">
+          Loading Point History…
+        </span>
+      </Card>
+    );
   }
   if (query.isError && !query.data) {
     return (
-      <div role="alert">
-        <p>Point History is temporarily unavailable.</p>
-        <button type="button" onClick={() => void query.refetch()}>
-          Retry history
-        </button>
-      </div>
+      <ErrorState
+        title="Point History is temporarily unavailable"
+        description="The append-only Reward Point ledger remains the audit source."
+        actionLabel="Retry history"
+        onAction={() => void query.refetch()}
+      />
     );
   }
 
@@ -59,37 +92,55 @@ export function PointHistory() {
   const entries = [...unique.values()];
 
   return (
-    <section className="point-history" aria-labelledby="point-history-title">
-      <h2 id="point-history-title">Point History</h2>
+    <Card
+      as="section"
+      className="point-history"
+      aria-labelledby="point-history-title"
+    >
+      <Heading id="point-history-title" level={2}>
+        Point History
+      </Heading>
+      <p className="mt-2 text-gj-sm text-gj-text-secondary">
+        Auditable Reward Point credits and debits reported by the server.
+      </p>
       {entries.length === 0 ? (
-        <p>No Reward Point activity yet.</p>
+        <EmptyState
+          title="No Reward Point activity yet."
+          description="Credits from committed Kudos and reward debits will appear here."
+        />
       ) : (
-        <ol className="history-list">
+        <ol className="history-list m-0 list-none p-0">
           {entries.map((entry) => (
             <PointHistoryItem key={entry.id} entry={entry} />
           ))}
         </ol>
       )}
       {query.isFetchNextPageError && (
-        <div role="alert">
+        <div
+          className="mt-4 rounded-gj-sm bg-gj-danger-subtle p-4 text-gj-sm text-gj-danger"
+          role="alert"
+        >
           Older Point History could not be loaded. Existing entries are
           preserved.
         </div>
       )}
       {query.hasNextPage && (
-        <button
+        <Button
+          className="mt-4"
+          variant="secondary"
           type="button"
-          disabled={query.isFetchingNextPage}
+          pending={query.isFetchingNextPage}
+          pendingLabel="Loading older activity…"
           onClick={() => void query.fetchNextPage()}
         >
-          {query.isFetchingNextPage
-            ? 'Loading older activity…'
-            : 'Load older activity'}
-        </button>
+          Load older activity
+        </Button>
       )}
       {!query.hasNextPage && entries.length > 0 && (
-        <p>You have reached the end of Point History.</p>
+        <p className="mt-4 mb-0 text-gj-xs text-gj-text-muted">
+          You have reached the end of Point History.
+        </p>
       )}
-    </section>
+    </Card>
   );
 }

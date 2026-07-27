@@ -19,6 +19,8 @@
     "test:e2e": "node scripts/run-with-env.mjs vitest run --config vitest.e2e.config.ts",
     "test:web:responsive": "node scripts/vr2-responsive-check.mjs",
     "test:web:dashboard-responsive": "RESPONSIVE_ROUTE=/ node scripts/vr2-responsive-check.mjs",
+    "test:web:visual-audit": "node scripts/visual-qa/responsive-audit.mjs",
+    "test:web:visual-states": "node scripts/visual-qa/state-capture.mjs",
     "validate": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm test:integration && pnpm test:e2e && pnpm build && docker compose config --quiet",
     "db:generate": "pnpm --filter @good-job/database db:generate",
     "db:migrate": "node scripts/run-with-env.mjs pnpm --filter @good-job/database db:migrate",

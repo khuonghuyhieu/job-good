@@ -7,6 +7,13 @@ import {
 import { GivingBudgetSummary } from '../features/wallet/GivingBudgetSummary.js';
 import { PointHistory } from '../features/wallet/PointHistory.js';
 import { RewardBalanceCard } from '../features/wallet/RewardBalanceCard.js';
+import {
+  ErrorState,
+  Eyebrow,
+  Heading,
+  Skeleton,
+  Text,
+} from '../shared/ui/index.js';
 
 export function WalletPage() {
   const overview = useQuery({
@@ -15,31 +22,42 @@ export function WalletPage() {
   });
 
   return (
-    <div className="wallet-page">
-      <header>
-        <p className="eyebrow">Your points</p>
-        <h1>Wallet</h1>
-        <p>
+    <main className="wallet-page mx-auto grid w-full max-w-6xl gap-8">
+      <header className="max-w-3xl">
+        <Eyebrow>Your points</Eyebrow>
+        <Heading level={1} className="mt-2">
+          Wallet
+        </Heading>
+        <Text className="mt-3">
           Giving Points help you recognize others. Reward Points record what you
           have earned.
-        </p>
+        </Text>
       </header>
       {overview.isPending ? (
-        <p role="status">Loading Wallet overview…</p>
-      ) : overview.isError || !overview.data ? (
-        <div role="alert">
-          <p>Wallet overview is temporarily unavailable.</p>
-          <button type="button" onClick={() => void overview.refetch()}>
-            Retry Wallet
-          </button>
+        <div
+          className="grid grid-cols-2 gap-5 max-mobile:grid-cols-1"
+          aria-label="Loading Wallet overview"
+        >
+          <Skeleton className="min-h-64 rounded-gj-lg" />
+          <Skeleton className="min-h-64 rounded-gj-lg" />
+          <span className="sr-only" role="status">
+            Loading Wallet overview…
+          </span>
         </div>
+      ) : overview.isError || !overview.data ? (
+        <ErrorState
+          title="Wallet overview is temporarily unavailable"
+          description="Your balances remain server-owned and safe."
+          actionLabel="Retry Wallet"
+          onAction={() => void overview.refetch()}
+        />
       ) : (
-        <div className="wallet-summary">
+        <div className="wallet-summary grid grid-cols-2 gap-5 max-mobile:grid-cols-1">
           <GivingBudgetSummary overview={overview.data} />
           <RewardBalanceCard overview={overview.data} />
         </div>
       )}
       <PointHistory />
-    </div>
+    </main>
   );
 }

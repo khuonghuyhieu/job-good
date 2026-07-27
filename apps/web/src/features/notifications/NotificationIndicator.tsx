@@ -1,10 +1,15 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { useState } from 'react';
 
 import {
   AppIcon,
   Badge,
+  Button,
   EmptyState,
   ErrorState,
   Popover,
@@ -16,7 +21,7 @@ import {
   markNotificationRead,
   notificationQueryKeys,
 } from './api.js';
-import { notificationLabel } from './presentation.js';
+import { NotificationItem } from './NotificationItem.js';
 
 export function NotificationIndicator() {
   const queryClient = useQueryClient();
@@ -25,9 +30,11 @@ export function NotificationIndicator() {
     queryKey: notificationQueryKeys.unread,
     queryFn: getUnreadNotificationCount,
   });
-  const notifications = useQuery({
-    queryKey: notificationQueryKeys.list,
-    queryFn: getNotifications,
+  const notifications = useInfiniteQuery({
+    queryKey: notificationQueryKeys.pages,
+    queryFn: ({ pageParam }) => getNotifications(pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: (page) => page.nextCursor ?? undefined,
   });
   const markRead = useMutation({
     mutationFn: markNotificationRead,
@@ -43,7 +50,7 @@ export function NotificationIndicator() {
   const isError =
     retryInProgress ||
     unread.isError ||
-    notifications.isError ||
+    (notifications.isError && !notifications.data) ||
     !notifications.data;
   const unreadCount = unread.data?.unreadCount ?? 0;
   const triggerLabel = isPending
@@ -51,6 +58,12 @@ export function NotificationIndicator() {
     : isError
       ? 'Notifications unavailable'
       : `Notifications, ${unreadCount} unread`;
+  const uniqueNotifications = new Map(
+    (notifications.data?.pages ?? [])
+      .flatMap((page) => page.items)
+      .map((notification) => [notification.id, notification]),
+  );
+  const notificationItems = [...uniqueNotifications.values()];
 
   return (
     <div className="gj-notification-entry">
@@ -96,44 +109,49 @@ export function NotificationIndicator() {
                 ]).finally(() => setRetryInProgress(false));
               }}
             />
-          ) : notifications.data.items.length === 0 ? (
+          ) : notificationItems.length === 0 ? (
             <EmptyState
               title="No notifications yet"
               description="Recognition updates will appear here."
             />
           ) : (
             <ul className="gj-notification-list m-0 grid max-h-[min(28rem,60vh)] list-none gap-2 overflow-auto p-0">
-              {notifications.data.items.map((notification) => (
-                <li
-                  key={notification.id}
-                  className={`gj-notification-item grid gap-2 rounded-gj-sm bg-gj-surface-subtle p-3 ${
-                    notification.readAt
-                      ? ''
-                      : 'gj-notification-item--unread shadow-[inset_0.2rem_0_var(--color-gj-primary-600)]'
-                  }`}
-                >
-                  <div className="gj-notification-item__meta flex items-center justify-between gap-2 text-gj-xs text-gj-text-muted">
-                    <span>{notificationLabel(notification.type)}</span>
-                    {!notification.readAt && <span>Unread</span>}
-                  </div>
-                  {notification.relatedKudoId ? (
-                    <Link
-                      className="w-fit font-bold text-gj-primary-700"
-                      to={`/kudos/${notification.relatedKudoId}`}
-                      onClick={() => {
-                        if (!notification.readAt) {
-                          markRead.mutate(notification.id);
-                        }
-                      }}
-                    >
-                      Open Kudo
-                    </Link>
-                  ) : (
-                    <span>Update recorded</span>
-                  )}
-                </li>
-              ))}
+              {notificationItems.map((notification) => {
+                const isCurrentMutation =
+                  markRead.variables === notification.id;
+                return (
+                  <NotificationItem
+                    key={notification.id}
+                    notification={notification}
+                    markReadPending={isCurrentMutation && markRead.isPending}
+                    markReadError={isCurrentMutation && markRead.isError}
+                    onMarkRead={(notificationId) =>
+                      markRead.mutate(notificationId)
+                    }
+                  />
+                );
+              })}
             </ul>
+          )}
+          {!isPending && !isError && notifications.isFetchNextPageError && (
+            <p
+              className="m-0 rounded-gj-sm bg-gj-danger-subtle p-3 text-gj-xs text-gj-danger"
+              role="alert"
+            >
+              Older notifications could not be loaded. Existing notifications
+              remain visible.
+            </p>
+          )}
+          {!isPending && !isError && notifications.hasNextPage && (
+            <Button
+              size="small"
+              variant="secondary"
+              pending={notifications.isFetchingNextPage}
+              pendingLabel="Loading older notifications…"
+              onClick={() => void notifications.fetchNextPage()}
+            >
+              Load older notifications
+            </Button>
           )}
         </section>
       </Popover>

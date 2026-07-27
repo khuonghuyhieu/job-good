@@ -8,6 +8,7 @@ import {
   removeMedia,
   uploadDirect,
 } from './api.js';
+import { AppIcon, Button } from '../../shared/ui/index.js';
 
 const maximumFiles = 5;
 const imageLimit = 10 * 1024 * 1024;
@@ -28,6 +29,7 @@ type UploadItem = {
   progress: number;
   state: 'uploading' | 'processing' | 'ready' | 'failed';
   error?: string | undefined;
+  retryable?: boolean | undefined;
   statusError?: string | undefined;
 };
 
@@ -41,8 +43,10 @@ export function AttachmentPicker({
   onChange: (attachmentIds: string[]) => void;
 }) {
   const [items, setItems] = useState<UploadItem[]>([]);
+  const [selectionMessage, setSelectionMessage] = useState<string | null>(null);
   const mounted = useRef(true);
   const previousAttachmentIds = useRef(attachmentIds);
+  const latestAttachmentIds = useRef(attachmentIds);
   useEffect(
     () => () => {
       mounted.current = false;
@@ -50,6 +54,7 @@ export function AttachmentPicker({
     [],
   );
   useEffect(() => {
+    latestAttachmentIds.current = attachmentIds;
     if (
       previousAttachmentIds.current.length > 0 &&
       attachmentIds.length === 0
@@ -58,6 +63,12 @@ export function AttachmentPicker({
     }
     previousAttachmentIds.current = attachmentIds;
   }, [attachmentIds]);
+
+  function publishAttachmentIds(nextAttachmentIds: string[]): void {
+    const deduplicated = [...new Set(nextAttachmentIds)];
+    latestAttachmentIds.current = deduplicated;
+    onChange(deduplicated);
+  }
 
   useEffect(() => {
     const processing = items.filter(
@@ -78,7 +89,10 @@ export function AttachmentPicker({
                       state: attachment.status as UploadItem['state'],
                       statusError: undefined,
                       ...(attachment.status === 'failed'
-                        ? { error: 'Video processing failed.' }
+                        ? {
+                            error: 'Video processing failed.',
+                            retryable: true,
+                          }
                         : {}),
                     }
                   : candidate,
@@ -104,10 +118,7 @@ export function AttachmentPicker({
     return () => clearInterval(timer);
   }, [items]);
 
-  async function upload(
-    item: UploadItem,
-    existingAttachmentIds = attachmentIds,
-  ): Promise<void> {
+  async function upload(item: UploadItem): Promise<void> {
     try {
       const mediaType = item.file.type.startsWith('image/') ? 'image' : 'video';
       const intent = await createUploadIntent({
@@ -143,12 +154,20 @@ export function AttachmentPicker({
                 progress: 100,
                 attachment: completed.attachment,
                 state: completed.attachment.status as UploadItem['state'],
-                error: undefined,
+                ...(completed.attachment.status === 'failed'
+                  ? {
+                      error: 'Media processing failed.',
+                      retryable: true,
+                    }
+                  : { error: undefined, retryable: undefined }),
               }
             : candidate,
         ),
       );
-      onChange([...existingAttachmentIds, completed.attachment.id]);
+      publishAttachmentIds([
+        ...latestAttachmentIds.current,
+        completed.attachment.id,
+      ]);
     } catch {
       if (!mounted.current) return;
       setItems((current) =>
@@ -158,6 +177,7 @@ export function AttachmentPicker({
                 ...candidate,
                 state: 'failed',
                 error: 'Upload failed. Your Kudo draft is preserved.',
+                retryable: true,
               }
             : candidate,
         ),
@@ -168,18 +188,35 @@ export function AttachmentPicker({
   function select(files: FileList | null): void {
     if (!files) return;
     const available = maximumFiles - items.length;
-    for (const file of Array.from(files).slice(0, available)) {
+    const selectedFiles = Array.from(files);
+    const acceptedFiles = selectedFiles.slice(0, available);
+    setSelectionMessage(
+      selectedFiles.length > acceptedFiles.length
+        ? `Only ${acceptedFiles.length} ${
+            acceptedFiles.length === 1 ? 'file was' : 'files were'
+          } added. A Kudo can include up to five files.`
+        : null,
+    );
+    for (const file of acceptedFiles) {
       const limit = file.type.startsWith('image/') ? imageLimit : videoLimit;
+      const validationError = !supported.has(file.type)
+        ? 'Unsupported file type. Choose a JPG, PNG, WebP, MP4, WebM or MOV file.'
+        : file.size > limit
+          ? `File is too large. Choose a ${
+              file.type.startsWith('image/') ? '10 MB image' : '200 MB video'
+            } or smaller.`
+          : null;
       const item: UploadItem = {
         localId: crypto.randomUUID(),
         file,
         attachment: null,
         progress: 0,
         state: 'uploading',
-        ...(!supported.has(file.type) || file.size > limit
+        ...(validationError
           ? {
               state: 'failed' as const,
-              error: 'Unsupported type or file size.',
+              error: validationError,
+              retryable: false,
             }
           : {}),
       };
@@ -196,75 +233,148 @@ export function AttachmentPicker({
       current.filter((candidate) => candidate.localId !== item.localId),
     );
     if (item.attachment) {
-      onChange(attachmentIds.filter((id) => id !== item.attachment!.id));
+      publishAttachmentIds(
+        latestAttachmentIds.current.filter((id) => id !== item.attachment!.id),
+      );
     }
   }
 
   return (
-    <fieldset disabled={disabled}>
-      <legend>Optional image or video</legend>
-      <input
-        aria-label="Add image or video"
-        type="file"
-        accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime"
-        multiple
-        disabled={disabled || items.length >= maximumFiles}
-        onChange={(event) => select(event.target.files)}
-      />
-      <ul>
+    <fieldset
+      className="m-0 grid gap-3 rounded-gj-md border border-dashed border-gj-control-border bg-gj-surface-subtle p-4 disabled:opacity-60"
+      disabled={disabled}
+    >
+      <legend className="px-2 text-gj-sm font-bold text-gj-brand-700">
+        Optional image or video
+      </legend>
+      <label className="flex min-h-28 cursor-pointer flex-col items-center justify-center gap-2 rounded-gj-md bg-white p-4 text-center transition hover:bg-gj-primary-100 focus-within:outline-3 focus-within:outline-offset-2 focus-within:outline-gj-focus">
+        <AppIcon name="media" className="size-7 text-gj-primary-600" />
+        <span className="text-gj-sm font-bold text-gj-brand-700">
+          Add up to five images or videos
+        </span>
+        <span className="text-gj-xs text-gj-text-secondary">
+          JPG, PNG, WebP, MP4, WebM or MOV
+        </span>
+        <input
+          className="sr-only"
+          aria-label="Add image or video"
+          type="file"
+          accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime"
+          multiple
+          disabled={disabled || items.length >= maximumFiles}
+          onChange={(event) => select(event.target.files)}
+        />
+      </label>
+      {selectionMessage && (
+        <p className="m-0 text-gj-sm text-gj-warning" role="status">
+          {selectionMessage}
+        </p>
+      )}
+      <ul className="m-0 grid list-none gap-3 p-0">
         {items.map((item) => (
-          <li key={item.localId}>
-            <span>{item.file.name}</span>
-            {item.state === 'uploading' && (
-              <progress value={item.progress} max={100}>
-                {item.progress}%
-              </progress>
-            )}
-            {item.state === 'processing' && (
-              <span role="status">Video processing…</span>
-            )}
-            {item.statusError && <span role="alert">{item.statusError}</span>}
-            {item.state === 'ready' && <span role="status">Ready</span>}
-            {item.error && <span role="alert">{item.error}</span>}
-            {item.state === 'failed' && (
-              <button
-                type="button"
-                onClick={() => {
-                  const previousId = item.attachment?.id;
-                  const remainingIds = previousId
-                    ? attachmentIds.filter((id) => id !== previousId)
-                    : attachmentIds;
-                  void (async () => {
-                    if (item.attachment && !item.attachment.ownerId) {
-                      await removeMedia(item.attachment.id).catch(
-                        () => undefined,
+          <li
+            className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-gj-md border border-gj-border bg-white p-3 max-mobile:grid-cols-[auto_minmax(0,1fr)]"
+            key={item.localId}
+          >
+            <span
+              className="grid size-10 place-items-center rounded-full bg-gj-primary-100 text-gj-primary-700"
+              aria-hidden="true"
+            >
+              <AppIcon name="media" className="size-5" />
+            </span>
+            <span className="min-w-0">
+              <strong className="block truncate text-gj-sm">
+                {item.file.name}
+              </strong>
+              {item.state === 'uploading' && (
+                <span className="mt-2 grid gap-1">
+                  <span className="text-gj-xs text-gj-text-secondary">
+                    Uploading {item.progress}%
+                  </span>
+                  <progress
+                    className="h-2 w-full accent-gj-primary-600"
+                    value={item.progress}
+                    max={100}
+                  >
+                    {item.progress}%
+                  </progress>
+                </span>
+              )}
+              {item.state === 'processing' && (
+                <span className="block text-gj-xs text-gj-info" role="status">
+                  Video processing…
+                </span>
+              )}
+              {item.statusError && (
+                <span className="block text-gj-xs text-gj-danger" role="alert">
+                  {item.statusError}
+                </span>
+              )}
+              {item.state === 'ready' && (
+                <span
+                  className="block text-gj-xs text-gj-success"
+                  role="status"
+                >
+                  Ready
+                </span>
+              )}
+              {item.error && (
+                <span className="block text-gj-xs text-gj-danger" role="alert">
+                  {item.error}
+                </span>
+              )}
+            </span>
+            <span className="flex flex-wrap justify-end gap-2 max-mobile:col-span-2">
+              {item.state === 'failed' && item.retryable && (
+                <Button
+                  size="small"
+                  variant="secondary"
+                  type="button"
+                  onClick={() => {
+                    const previousId = item.attachment?.id;
+                    const remainingIds = previousId
+                      ? latestAttachmentIds.current.filter(
+                          (id) => id !== previousId,
+                        )
+                      : latestAttachmentIds.current;
+                    void (async () => {
+                      if (item.attachment && !item.attachment.ownerId) {
+                        await removeMedia(item.attachment.id).catch(
+                          () => undefined,
+                        );
+                      }
+                      publishAttachmentIds(remainingIds);
+                      const retryItem = {
+                        ...item,
+                        attachment: null,
+                        progress: 0,
+                        state: 'uploading' as const,
+                        error: undefined,
+                        retryable: undefined,
+                      };
+                      setItems((current) =>
+                        current.map((candidate) =>
+                          candidate.localId === item.localId
+                            ? retryItem
+                            : candidate,
+                        ),
                       );
-                    }
-                    onChange(remainingIds);
-                    const retryItem = {
-                      ...item,
-                      attachment: null,
-                      progress: 0,
-                      state: 'uploading' as const,
-                      error: undefined,
-                    };
-                    setItems((current) =>
-                      current.map((candidate) =>
-                        candidate.localId === item.localId
-                          ? retryItem
-                          : candidate,
-                      ),
-                    );
-                    await upload(retryItem, remainingIds);
-                  })();
-                }}
+                      await upload(retryItem);
+                    })();
+                  }}
+                >
+                  Retry upload
+                </Button>
+              )}
+              <Button
+                size="small"
+                variant="ghost"
+                type="button"
+                onClick={() => void remove(item)}
               >
-                Retry upload
-              </button>
-            )}
-            <button type="button" onClick={() => void remove(item)}>
-              Remove {item.file.name}
-            </button>
+                Remove {item.file.name}
+              </Button>
+            </span>
           </li>
         ))}
       </ul>

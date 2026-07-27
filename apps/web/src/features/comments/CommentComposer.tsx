@@ -4,6 +4,7 @@ import { useRef, useState, type FormEvent } from 'react';
 import { ApiClientError } from '../../api/error-adapter.js';
 import { feedQueryKey, feedQueryKeys } from '../feed/query-keys.js';
 import { createComment } from './api.js';
+import { Button, Field, TextArea } from '../../shared/ui/index.js';
 
 type Attempt = { body: string; key: string };
 
@@ -75,31 +76,36 @@ export function CommentComposer({ kudoId }: { kudoId: string }) {
 
   const locked = mutation.isPending || recovery !== null;
   return (
-    <form className="comment-composer" onSubmit={submit} noValidate>
-      <label htmlFor="comment-body">Add a comment</label>
-      <textarea
+    <form
+      className="grid gap-3 rounded-gj-md border border-gj-border bg-white p-4"
+      onSubmit={submit}
+      noValidate
+    >
+      <Field
         id="comment-body"
-        value={body}
-        disabled={locked}
-        aria-invalid={Boolean(error)}
-        aria-describedby={error ? 'comment-error' : undefined}
-        onChange={(event) => {
-          setBody(event.target.value);
-          setError(null);
-        }}
-      />
-      {error && (
-        <p id="comment-error" role="alert">
-          {error}
-        </p>
-      )}
-      <button type="submit" disabled={mutation.isPending}>
-        {mutation.isPending
-          ? 'Posting comment…'
-          : recovery
-            ? 'Retry comment safely'
-            : 'Post comment'}
-      </button>
+        label="Add a comment"
+        {...(error ? { error } : {})}
+      >
+        <TextArea
+          id="comment-body"
+          className="min-h-24"
+          value={body}
+          disabled={locked}
+          placeholder="Add to the celebration…"
+          onChange={(event) => {
+            setBody(event.target.value);
+            setError(null);
+          }}
+        />
+      </Field>
+      <Button
+        className="justify-self-end max-mobile:w-full"
+        type="submit"
+        pending={mutation.isPending}
+        pendingLabel="Posting comment…"
+      >
+        {recovery ? 'Retry comment safely' : 'Post comment'}
+      </Button>
     </form>
   );
 }

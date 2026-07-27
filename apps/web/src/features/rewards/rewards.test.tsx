@@ -161,14 +161,18 @@ describe('Phase 6 Rewards frontend', () => {
       </Routes>,
       `/rewards/${rewardId}`,
     );
-    await userEvent.click(
-      await screen.findByRole('button', { name: 'Redeem reward' }),
+    const opener = await screen.findByRole('button', {
+      name: 'Redeem reward',
+    });
+    await userEvent.click(opener);
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Confirm redemption' }),
+      ).toHaveFocus(),
     );
-    expect(
-      screen.getByRole('button', { name: 'Confirm redemption' }),
-    ).toHaveFocus();
     await userEvent.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(opener).toHaveFocus();
   });
 
   it('uses the same idempotency key while checking an unknown response', async () => {
@@ -199,7 +203,7 @@ describe('Phase 6 Rewards frontend', () => {
       screen.getByRole('button', { name: 'Confirm redemption' }),
     );
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'result is unknown',
+      'result is still unknown',
     );
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
     await userEvent.click(
@@ -236,5 +240,102 @@ describe('Phase 6 Rewards frontend', () => {
     expect(
       screen.queryByRole('button', { name: 'Redeem reward' }),
     ).not.toBeInTheDocument();
+  });
+
+  it('closes and locks the confirmation after a terminal redemption error', async () => {
+    let detailCalls = 0;
+    let postCalls = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        if (init?.method === 'POST') {
+          postCalls += 1;
+          return response(
+            {
+              code: 'INSUFFICIENT_REWARD_POINTS',
+              message: 'Latest balance is insufficient.',
+              requestId: 'test-request',
+            },
+            409,
+          );
+        }
+        detailCalls += 1;
+        return response(
+          detailCalls === 1
+            ? detail
+            : {
+                ...detail,
+                eligibility: {
+                  currentBalance: 20,
+                  eligible: false,
+                  reason: 'insufficient_points',
+                },
+              },
+        );
+      }),
+    );
+    renderPage(
+      <Routes>
+        <Route path="/rewards/:rewardId" element={<RewardDetailPage />} />
+      </Routes>,
+      `/rewards/${rewardId}`,
+    );
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Redeem reward' }),
+    );
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Confirm redemption' }),
+    );
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'latest Reward Point balance is insufficient',
+    );
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Confirm redemption' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Redeem reward' }),
+    ).not.toBeInTheDocument();
+    expect(postCalls).toBe(1);
+  });
+
+  it('preserves existing redemption history when an older page fails', async () => {
+    let historyCalls = 0;
+    const historyItem = {
+      ...redemption.redemption,
+      ledgerEntryId: ledgerId,
+      sequence: 2,
+      balanceAfter: 40,
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = new URL(String(input)).pathname;
+        if (path === '/rewards') return response({ items: [reward] });
+        historyCalls += 1;
+        return historyCalls === 1
+          ? response({ items: [historyItem], nextCursor: 'older' })
+          : response(
+              {
+                code: 'DEPENDENCY_UNAVAILABLE',
+                message: 'Temporary',
+                requestId: 'request-id',
+              },
+              503,
+            );
+      }),
+    );
+    renderPage(<RewardsPage />);
+
+    expect(
+      await screen.findByRole('heading', { name: reward.name }),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Load more' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Existing history remains visible',
+    );
+    expect(screen.getByText('−60 Reward Points')).toBeInTheDocument();
   });
 });

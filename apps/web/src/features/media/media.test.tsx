@@ -23,9 +23,12 @@ vi.mock('./api.js', () => ({
   mediaQueryKey: (id: string) => ['media', id],
 }));
 
-function attachment(status: 'uploading' | 'processing' | 'ready' | 'failed') {
+function attachment(
+  status: 'uploading' | 'processing' | 'ready' | 'failed',
+  id = '70000000-0000-4000-8000-000000000001',
+) {
   return {
-    id: '70000000-0000-4000-8000-000000000001',
+    id,
     ownerType: 'kudo' as const,
     ownerId: null,
     mediaType: 'image' as const,
@@ -91,6 +94,95 @@ describe('Phase 7 media UI', () => {
     expect(await screen.findByText('Ready')).toBeInTheDocument();
   });
 
+  it('retains every attachment ID when multiple uploads complete concurrently', async () => {
+    const firstId = '70000000-0000-4000-8000-000000000001';
+    const secondId = '70000000-0000-4000-8000-000000000002';
+    let intent = 0;
+    mediaApi.createUploadIntent.mockImplementation(async () => {
+      const id = intent++ === 0 ? firstId : secondId;
+      return {
+        attachment: attachment('uploading', id),
+        upload: {
+          method: 'PUT',
+          url: `https://objects.test/${id}`,
+          headers: { 'content-type': 'image/png' },
+          expiresAt: '2026-07-27T00:00:00.000Z',
+        },
+      };
+    });
+    mediaApi.uploadDirect.mockResolvedValue(undefined);
+    mediaApi.completeMedia.mockImplementation(async (id: string) => ({
+      attachment: attachment('ready', id),
+    }));
+    const onChange = vi.fn();
+
+    render(
+      <AttachmentPicker
+        attachmentIds={[]}
+        disabled={false}
+        onChange={onChange}
+      />,
+    );
+    await userEvent.upload(screen.getByLabelText('Add image or video'), [
+      new File(['first'], 'first.png', { type: 'image/png' }),
+      new File(['second'], 'second.png', { type: 'image/png' }),
+    ]);
+
+    await waitFor(() =>
+      expect(onChange).toHaveBeenCalledWith([firstId, secondId]),
+    );
+    expect(await screen.findAllByText('Ready')).toHaveLength(2);
+  });
+
+  it('shows terminal file validation without offering a futile retry', async () => {
+    render(
+      <AttachmentPicker
+        attachmentIds={[]}
+        disabled={false}
+        onChange={vi.fn()}
+      />,
+    );
+    const picker = screen.getByLabelText('Add image or video');
+    await userEvent.upload(
+      picker,
+      new File(['plain'], 'notes.txt', { type: 'text/plain' }),
+      { applyAccept: false },
+    );
+
+    expect(await screen.findByText(/Unsupported file type/u)).toBeVisible();
+    expect(
+      screen.queryByRole('button', { name: 'Retry upload' }),
+    ).not.toBeInTheDocument();
+    expect(mediaApi.createUploadIntent).not.toHaveBeenCalled();
+    expect(picker.parentElement).toHaveClass('focus-within:outline-3');
+  });
+
+  it('announces when the five-file limit truncates a selection', async () => {
+    mediaApi.createUploadIntent.mockRejectedValue(new Error('offline'));
+    render(
+      <AttachmentPicker
+        attachmentIds={[]}
+        disabled={false}
+        onChange={vi.fn()}
+      />,
+    );
+    const files = Array.from(
+      { length: 6 },
+      (_, index) =>
+        new File([String(index)], `proof-${index}.png`, { type: 'image/png' }),
+    );
+    await userEvent.upload(screen.getByLabelText('Add image or video'), files);
+
+    expect(
+      await screen.findByText(
+        'Only 5 files were added. A Kudo can include up to five files.',
+      ),
+    ).toHaveAttribute('role', 'status');
+    expect(
+      screen.getAllByRole('button', { name: /Remove proof-/u }),
+    ).toHaveLength(5);
+  });
+
   it('never renders processing media as ready content', async () => {
     mediaApi.getMediaStatus.mockResolvedValue({
       attachment: {
@@ -115,6 +207,67 @@ describe('Phase 7 media UI', () => {
     ).toBeInTheDocument();
     expect(screen.queryByRole('img')).not.toBeInTheDocument();
     expect(document.querySelector('video')).toBeNull();
+  });
+
+  it('distinguishes an incomplete upload from media processing', async () => {
+    mediaApi.getMediaStatus.mockResolvedValue({
+      attachment: attachment('uploading'),
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MediaAttachmentView attachmentId="70000000-0000-4000-8000-000000000001" />
+      </QueryClientProvider>,
+    );
+
+    expect(
+      await screen.findByText('Media upload is not complete yet.'),
+    ).toBeVisible();
+    expect(
+      screen.queryByText('Media is processing. It is not ready yet.'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('renders a failed attachment as an explicit terminal state', async () => {
+    mediaApi.getMediaStatus.mockResolvedValue({
+      attachment: attachment('failed'),
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MediaAttachmentView attachmentId="70000000-0000-4000-8000-000000000001" />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Media processing failed.',
+    );
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+  });
+
+  it('renders ready image media from the server content URL', async () => {
+    mediaApi.getMediaStatus.mockResolvedValue({
+      attachment: attachment('ready'),
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MediaAttachmentView attachmentId="70000000-0000-4000-8000-000000000001" />
+      </QueryClientProvider>,
+    );
+
+    expect(
+      await screen.findByRole('img', { name: 'proof.png' }),
+    ).toHaveAttribute('src', 'https://objects.test/proof.png');
   });
 
   it('shows a recoverable error when processing-status polling fails', async () => {

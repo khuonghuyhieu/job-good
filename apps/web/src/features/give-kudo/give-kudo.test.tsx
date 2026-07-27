@@ -120,7 +120,10 @@ function baseResponse(pathname: string): Response {
   throw new Error(`Unexpected request: ${pathname}`);
 }
 
-function renderComposer(fetchMock: ReturnType<typeof vi.fn>) {
+function renderComposer(
+  fetchMock: ReturnType<typeof vi.fn>,
+  options: { compact?: boolean } = {},
+) {
   vi.stubGlobal('fetch', fetchMock);
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -132,7 +135,11 @@ function renderComposer(fetchMock: ReturnType<typeof vi.fn>) {
   render(
     <QueryClientProvider client={queryClient}>
       <SessionContext.Provider value={session}>
-        <GiveKudoComposer />
+        <GiveKudoComposer
+          {...(options.compact === undefined
+            ? {}
+            : { compact: options.compact })}
+        />
       </SessionContext.Provider>
     </QueryClientProvider>,
   );
@@ -140,16 +147,13 @@ function renderComposer(fetchMock: ReturnType<typeof vi.fn>) {
 }
 
 async function completeDraft() {
-  await screen.findByRole('option', {
-    name: 'Receiver Employee · Product',
-  });
-  await userEvent.selectOptions(screen.getByLabelText('Colleague'), receiverId);
-  await userEvent.selectOptions(
-    screen.getByLabelText('Core Value'),
-    coreValueId,
+  await userEvent.click(
+    await screen.findByRole('radio', {
+      name: /Receiver Employee Product/u,
+    }),
   );
-  await userEvent.clear(screen.getByLabelText('Giving Points'));
-  await userEvent.type(screen.getByLabelText('Giving Points'), '20');
+  await userEvent.click(screen.getByRole('radio', { name: /Ownership/u }));
+  await userEvent.click(screen.getByRole('radio', { name: '20' }));
   await userEvent.type(
     screen.getByLabelText('Why are you recognizing them?'),
     'A thoughtful contribution.',
@@ -184,14 +188,38 @@ describe('Phase 3 Give Kudo frontend', () => {
     );
     expect(await screen.findByText('150 points remaining')).toBeInTheDocument();
     expect(
-      screen.getByRole('option', { name: 'Receiver Employee · Product' }),
+      screen.getByRole('radio', { name: /Receiver Employee Product/u }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole('option', { name: /Sender Employee/u }),
+      screen.queryByRole('radio', { name: /Sender Employee/u }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole('option', { name: 'Ownership' }),
+      screen.getByRole('radio', { name: /Ownership/u }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole('radio', { name: /Receiver Employee/u }),
+    ).not.toBeChecked();
+    expect(screen.getByRole('radio', { name: /Ownership/u })).not.toBeChecked();
+    expect(screen.getByRole('radio', { name: '10' })).toBeChecked();
+  });
+
+  it('keeps rich selector and segmented-point controls synchronized with the command fields', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) =>
+      baseResponse(new URL(String(input)).pathname),
+    );
+    renderComposer(fetchMock);
+
+    await userEvent.click(
+      await screen.findByRole('radio', { name: /Receiver Employee/u }),
+    );
+    await userEvent.click(screen.getByRole('radio', { name: /Ownership/u }));
+    await userEvent.click(screen.getByRole('radio', { name: '40' }));
+
+    expect(
+      screen.getByRole('radio', { name: /Receiver Employee/u }),
+    ).toBeChecked();
+    expect(screen.getByRole('radio', { name: /Ownership/u })).toBeChecked();
+    expect(screen.getByRole('radio', { name: '40' })).toBeChecked();
   });
 
   it('communicates empty colleague and Core Value states', async () => {
@@ -218,7 +246,7 @@ describe('Phase 3 Give Kudo frontend', () => {
     expect(screen.getByRole('button', { name: 'Give Kudo' })).toBeDisabled();
   });
 
-  it('validates required fields and point range without losing the draft', async () => {
+  it('validates required fields without losing the draft', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) =>
       baseResponse(new URL(String(input)).pathname),
     );
@@ -229,22 +257,43 @@ describe('Phase 3 Give Kudo frontend', () => {
       screen.getByLabelText('Why are you recognizing them?'),
       'Preserve this draft',
     );
-    await userEvent.clear(screen.getByLabelText('Giving Points'));
-    await userEvent.type(screen.getByLabelText('Giving Points'), '60');
     await userEvent.click(screen.getByRole('button', { name: 'Give Kudo' }));
 
     expect(screen.getByText('Choose a colleague.')).toBeInTheDocument();
     expect(screen.getByText('Choose a Core Value.')).toBeInTheDocument();
-    expect(
-      screen.getByText('Points must be between 10 and 50.'),
-    ).toBeInTheDocument();
     expect(screen.getByDisplayValue('Preserve this draft')).toBeInTheDocument();
     expect(
       fetchMock.mock.calls.some(
         ([input]) => new URL(String(input)).pathname === '/kudos',
       ),
     ).toBe(false);
-    expect(screen.getByLabelText('Colleague')).toHaveFocus();
+    expect(
+      screen.getByRole('radio', { name: /Receiver Employee Product/u }),
+    ).toHaveFocus();
+  });
+
+  it('keeps the selected colleague visible when search results change', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      if (url.pathname === '/employees' && url.searchParams.get('query')) {
+        return jsonResponse({ items: [], nextCursor: null });
+      }
+      return baseResponse(url.pathname);
+    });
+    renderComposer(fetchMock);
+
+    const receiver = await screen.findByRole('radio', {
+      name: /Receiver Employee Product/u,
+    });
+    await userEvent.click(receiver);
+    await userEvent.type(screen.getByLabelText('Find a colleague'), 'Nobody');
+
+    expect(
+      await screen.findByRole('radio', {
+        name: /Receiver Employee Product/u,
+      }),
+    ).toBeChecked();
+    expect(screen.getByText('No matching colleagues.')).toBeInTheDocument();
   });
 
   it('does not show success while pending and updates server caches after success', async () => {
@@ -268,7 +317,9 @@ describe('Phase 3 Give Kudo frontend', () => {
     expect(
       screen.getByRole('button', { name: 'Sending Kudo…' }),
     ).toBeDisabled();
-    expect(screen.getByLabelText('Colleague')).toBeDisabled();
+    expect(
+      screen.getByRole('radio', { name: /Receiver Employee/u }),
+    ).toBeDisabled();
     expect(
       screen.getByLabelText('Why are you recognizing them?'),
     ).toBeDisabled();
@@ -294,6 +345,31 @@ describe('Phase 3 Give Kudo frontend', () => {
         /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u,
       ),
     });
+  });
+
+  it('keeps compact success confirmation visible after collapsing', async () => {
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const path = new URL(String(input)).pathname;
+        if (path === '/kudos' && init?.method === 'POST') {
+          return jsonResponse(success, 201);
+        }
+        return baseResponse(path);
+      },
+    );
+    renderComposer(fetchMock, { compact: true });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Give a Kudo' }));
+    await completeDraft();
+    await userEvent.click(screen.getByRole('button', { name: 'Give Kudo' }));
+
+    expect(
+      await screen.findByText('Kudo committed for 20 points.'),
+    ).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Give a Kudo' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
   });
 
   it('preserves the draft and reuses one idempotency key after a temporary failure', async () => {
@@ -329,7 +405,9 @@ describe('Phase 3 Give Kudo frontend', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'draft is preserved',
     );
-    expect(screen.getByLabelText('Colleague')).toBeDisabled();
+    expect(
+      screen.getByRole('radio', { name: /Receiver Employee/u }),
+    ).toBeDisabled();
     expect(
       screen.getByDisplayValue('A thoughtful contribution.'),
     ).toBeDisabled();
@@ -548,10 +626,14 @@ describe('Phase 3 Give Kudo frontend', () => {
       screen.getByText('Choose an active Core Value.'),
     ).toBeInTheDocument();
     await waitFor(() =>
-      expect(screen.getByLabelText('Core Value')).toHaveFocus(),
+      expect(
+        screen.getByRole('radiogroup', { name: 'Choose a Core Value' }),
+      ).toHaveFocus(),
     );
-    expect(screen.getByLabelText('Colleague')).toHaveValue(receiverId);
-    expect(screen.getByLabelText('Giving Points')).toHaveValue(20);
+    expect(
+      screen.getByRole('radio', { name: /Receiver Employee/u }),
+    ).toBeChecked();
+    expect(screen.getByRole('radio', { name: '20' })).toBeChecked();
     expect(
       screen.getByDisplayValue('A thoughtful contribution.'),
     ).toBeInTheDocument();

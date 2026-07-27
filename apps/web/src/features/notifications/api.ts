@@ -9,12 +9,15 @@ import { apiRequest } from '../../api/client.js';
 export const notificationQueryKeys = {
   all: ['notifications'] as const,
   list: ['notifications', 'list'] as const,
+  pages: ['notifications', 'pages'] as const,
   unread: ['notifications', 'unread'] as const,
 };
 
-export async function getNotifications() {
+export async function getNotifications(cursor: string | null = null) {
+  const parameters = new URLSearchParams({ limit: '20' });
+  if (cursor) parameters.set('cursor', cursor);
   return notificationListResponseSchema.parse(
-    await apiRequest('/notifications?limit=20'),
+    await apiRequest(`/notifications?${parameters.toString()}`),
   );
 }
 

@@ -387,6 +387,8 @@ describe('Phase 4 Feed and community frontend', () => {
       }),
     ).toBeInTheDocument();
     expect(screen.getByText('No comments yet.')).toBeInTheDocument();
+    expect(screen.getByText('20 Giving Points')).toBeInTheDocument();
+    expect(screen.getAllByRole('img')).toHaveLength(2);
   });
 
   it('renders an unavailable Kudo Focus state safely', async () => {

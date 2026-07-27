@@ -1,13 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
-
 import {
   getNotifications,
   getUnreadNotificationCount,
   markNotificationRead,
   notificationQueryKeys,
 } from '../notifications/api.js';
-import { notificationLabel } from '../notifications/presentation.js';
+import { NotificationItem } from '../notifications/NotificationItem.js';
 import {
   Badge,
   Card,
@@ -21,7 +19,7 @@ export function QuickNotificationsWidget() {
   const queryClient = useQueryClient();
   const notifications = useQuery({
     queryKey: notificationQueryKeys.list,
-    queryFn: getNotifications,
+    queryFn: () => getNotifications(),
   });
   const unread = useQuery({
     queryKey: notificationQueryKeys.unread,
@@ -72,36 +70,19 @@ export function QuickNotificationsWidget() {
         />
       ) : (
         <ul className="m-0 grid list-none gap-2 p-0">
-          {notifications.data.items.slice(0, 4).map((notification) => (
-            <li
-              key={notification.id}
-              className="rounded-gj-sm bg-gj-surface-subtle p-3"
-            >
-              {notification.relatedKudoId ? (
-                <Link
-                  className="font-bold text-gj-primary-700"
-                  to={`/kudos/${notification.relatedKudoId}`}
-                  onClick={() => {
-                    if (!notification.readAt) {
-                      markRead.mutate(notification.id);
-                    }
-                  }}
-                >
-                  {notificationLabel(notification.type)}
-                </Link>
-              ) : (
-                <span className="font-bold">
-                  {notificationLabel(notification.type)}
-                </span>
-              )}
-              <p className="mt-1 mb-0 text-gj-xs text-gj-text-muted">
-                <time dateTime={notification.createdAt}>
-                  {new Date(notification.createdAt).toLocaleDateString()}
-                </time>
-                {!notification.readAt && ' · Unread'}
-              </p>
-            </li>
-          ))}
+          {notifications.data.items.slice(0, 4).map((notification) => {
+            const isCurrentMutation = markRead.variables === notification.id;
+            return (
+              <NotificationItem
+                key={notification.id}
+                notification={notification}
+                compact
+                markReadPending={isCurrentMutation && markRead.isPending}
+                markReadError={isCurrentMutation && markRead.isError}
+                onMarkRead={(notificationId) => markRead.mutate(notificationId)}
+              />
+            );
+          })}
         </ul>
       )}
     </Card>

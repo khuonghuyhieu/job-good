@@ -27,7 +27,14 @@ import {
 import { feedQueryKey } from '../feed/query-keys.js';
 import { GivingBudgetCard } from './GivingBudgetCard.js';
 import { AttachmentPicker } from '../media/AttachmentPicker.js';
-import { Avatar, Button } from '../../shared/ui/index.js';
+import {
+  Avatar,
+  Button,
+  ErrorState,
+  Field,
+  TextArea,
+  TextInput,
+} from '../../shared/ui/index.js';
 
 type Draft = {
   receiverId: string;
@@ -69,6 +76,8 @@ const emptyDraft: Draft = {
   description: '',
   attachmentIds: [],
 };
+
+const pointOptions = [10, 20, 30, 40, 50] as const;
 
 function newIdempotencyKey(): string {
   return crypto.randomUUID();
@@ -142,13 +151,22 @@ function focusFirstInvalidField(errors: DraftErrors): void {
     ['receiverId', 'coreValueId', 'points', 'description'] as const
   ).find((candidate) => errors[candidate]);
   if (field) {
-    const elementId = {
-      receiverId: 'receiver',
-      coreValueId: 'core-value',
-      points: 'points',
+    const selector = {
+      receiverId: '#receiver-group input[type="radio"]:not(:disabled)',
+      coreValueId: '#core-value-group input[type="radio"]:not(:disabled)',
+      points: '#points-group input[type="radio"]:not(:disabled)',
+      description: '#description',
+    }[field];
+    const fallbackId = {
+      receiverId: 'colleague-search',
+      coreValueId: 'core-value-group',
+      points: 'points-group',
       description: 'description',
     }[field];
-    setTimeout(() => document.getElementById(elementId)?.focus(), 0);
+    setTimeout(() => {
+      const fieldControl = document.querySelector<HTMLElement>(selector);
+      (fieldControl ?? document.getElementById(fallbackId))?.focus();
+    }, 0);
   }
 }
 
@@ -165,6 +183,9 @@ export function GiveKudoComposer({
     session.status === 'authenticated' ? session.currentUser.user.id : '';
   const [search, setSearch] = useState('');
   const [draft, setDraft] = useState<Draft>(emptyDraft);
+  const [selectedColleague, setSelectedColleague] = useState<
+    ColleagueSearchResponse['items'][number] | null
+  >(null);
   const [errors, setErrors] = useState<DraftErrors>({});
   const [idempotencyKey, setIdempotencyKey] = useState(newIdempotencyKey);
   const [success, setSuccess] = useState<CreateKudoResponse | null>(null);
@@ -193,6 +214,7 @@ export function GiveKudoComposer({
     onSuccess: async (response) => {
       setSuccess(response);
       setDraft(emptyDraft);
+      setSelectedColleague(null);
       setErrors({});
       setRecoveryCommand(null);
       setIdempotencyKey(newIdempotencyKey());
@@ -273,6 +295,11 @@ export function GiveKudoComposer({
     colleaguesQuery.data?.items.filter(
       (colleague) => colleague.id !== currentEmployeeId,
     ) ?? [];
+  const displayedColleagues =
+    selectedColleague &&
+    !colleagues.some((colleague) => colleague.id === selectedColleague.id)
+      ? [selectedColleague, ...colleagues]
+      : colleagues;
   const exhausted =
     budgetQuery.data !== undefined &&
     budgetQuery.data.givingBudget.remaining < 10;
@@ -310,7 +337,9 @@ export function GiveKudoComposer({
   return (
     <div
       className={
-        showBudgetSummary ? 'recognition-grid' : 'gj-dashboard-composer min-w-0'
+        showBudgetSummary
+          ? 'mx-auto grid w-full max-w-5xl grid-cols-[minmax(13.75rem,0.75fr)_minmax(0,1.5fr)] items-start gap-6 max-mobile:grid-cols-1'
+          : 'gj-dashboard-composer min-w-0'
       }
     >
       {showBudgetSummary && (
@@ -323,14 +352,18 @@ export function GiveKudoComposer({
       )}
 
       <section
-        className={
-          showBudgetSummary
-            ? 'composer-card'
-            : 'composer-card rounded-gj-lg border border-gj-border bg-white p-[clamp(1.25rem,3vw,2rem)] shadow-gj-card'
-        }
+        className="min-w-0 rounded-gj-lg border border-gj-border bg-white p-[clamp(1.25rem,3vw,2rem)] shadow-gj-card"
         aria-labelledby="give-kudo-title"
         data-dashboard-composer={!showBudgetSummary || undefined}
       >
+        {success && (
+          <div
+            role="status"
+            className="mb-5 rounded-gj-md border border-gj-success/20 bg-gj-success-subtle p-4 text-gj-sm font-semibold text-gj-success"
+          >
+            Kudo committed for {success.kudo.points} points.
+          </div>
+        )}
         {compact && !expanded ? (
           <div className="flex items-center gap-4 max-mobile:flex-wrap">
             <Avatar
@@ -339,7 +372,9 @@ export function GiveKudoComposer({
               size="large"
             />
             <div className="min-w-0 flex-1">
-              <p className="eyebrow">Recognition</p>
+              <p className="m-0 text-gj-xs font-extrabold tracking-[0.12em] text-gj-primary-600 uppercase">
+                Recognition
+              </p>
               <h2
                 className="m-0 text-gj-lg font-bold text-gj-brand-700"
                 id="give-kudo-title"
@@ -364,7 +399,9 @@ export function GiveKudoComposer({
           <>
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="eyebrow">Recognition</p>
+                <p className="m-0 text-gj-xs font-extrabold tracking-[0.12em] text-gj-primary-600 uppercase">
+                  Recognition
+                </p>
                 <h2
                   className="m-0 text-gj-2xl font-bold text-gj-brand-700"
                   id="give-kudo-title"
@@ -388,159 +425,275 @@ export function GiveKudoComposer({
             </div>
 
             {exhausted && (
-              <div role="status" className="blocked-message">
+              <div
+                role="status"
+                className="mt-5 rounded-gj-md border border-gj-warning/25 bg-gj-warning-subtle p-4 text-gj-sm font-semibold text-gj-warning"
+              >
                 Your Giving Budget is exhausted for this business month.
               </div>
             )}
-            {success && (
-              <div role="status" className="success-message">
-                Kudo committed for {success.kudo.points} points.
+            {mutation.isError && (
+              <div
+                role="alert"
+                className="mt-5 rounded-gj-md border border-gj-danger/20 bg-gj-danger-subtle p-4 text-gj-sm text-gj-danger"
+              >
+                {commandErrorMessage(mutation.error)}
               </div>
             )}
-            {mutation.isError && (
-              <div role="alert">{commandErrorMessage(mutation.error)}</div>
-            )}
 
-            <form id="give-kudo-form" onSubmit={submit} noValidate>
-              <label htmlFor="colleague-search">Find a colleague</label>
-              <input
-                id="colleague-search"
-                value={search}
-                disabled={fieldsLocked}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search by name or team"
-              />
+            <form
+              className="mt-6 grid gap-6"
+              id="give-kudo-form"
+              onSubmit={submit}
+              noValidate
+            >
+              <Field id="colleague-search" label="Find a colleague">
+                <TextInput
+                  id="colleague-search"
+                  value={search}
+                  disabled={fieldsLocked}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search by name or team"
+                />
+              </Field>
               {colleaguesQuery.isPending ? (
-                <p role="status">Loading colleagues…</p>
+                <p
+                  className="m-0 text-gj-sm text-gj-text-secondary"
+                  role="status"
+                >
+                  Loading colleagues…
+                </p>
               ) : colleaguesQuery.isError ? (
-                <div role="alert">
-                  Colleagues are temporarily unavailable.
-                  <button
-                    type="button"
-                    onClick={() => void colleaguesQuery.refetch()}
-                  >
-                    Retry colleagues
-                  </button>
-                </div>
+                <ErrorState
+                  title="Colleagues are temporarily unavailable"
+                  actionLabel="Retry colleagues"
+                  onAction={() => void colleaguesQuery.refetch()}
+                />
               ) : colleagues.length === 0 ? (
-                <p role="status">No matching colleagues.</p>
+                <p
+                  className="m-0 rounded-gj-md bg-gj-surface-subtle p-4 text-gj-sm text-gj-text-secondary"
+                  role="status"
+                >
+                  No matching colleagues.
+                </p>
               ) : null}
 
-              <label htmlFor="receiver">Colleague</label>
-              <select
-                id="receiver"
-                value={draft.receiverId}
-                disabled={fieldsLocked}
-                aria-invalid={Boolean(errors.receiverId)}
-                aria-describedby={
-                  errors.receiverId ? 'receiver-error' : undefined
-                }
-                onChange={(event) =>
-                  updateDraft('receiverId', event.target.value)
-                }
-              >
-                <option value="">Choose a colleague</option>
-                {colleagues.map((colleague) => (
-                  <option key={colleague.id} value={colleague.id}>
-                    {colleague.displayName}
-                    {colleague.teamName ? ` · ${colleague.teamName}` : ''}
-                  </option>
-                ))}
-              </select>
+              <div className="grid gap-3">
+                <span className="text-gj-sm font-bold text-gj-brand-700">
+                  Colleague
+                </span>
+                <div
+                  className="grid grid-cols-2 gap-3 rounded-gj-sm max-mobile:grid-cols-1 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-gj-focus"
+                  role="radiogroup"
+                  aria-label="Choose a colleague"
+                  aria-invalid={Boolean(errors.receiverId)}
+                  aria-describedby={
+                    errors.receiverId ? 'receiver-error' : undefined
+                  }
+                  id="receiver-group"
+                  tabIndex={-1}
+                >
+                  {displayedColleagues.map((colleague) => {
+                    const selected = draft.receiverId === colleague.id;
+                    return (
+                      <label
+                        key={colleague.id}
+                        className={
+                          selected
+                            ? 'relative flex min-h-16 cursor-pointer items-center gap-3 rounded-gj-md border-2 border-gj-primary-600 bg-gj-primary-100 p-3 text-left text-gj-text shadow-sm'
+                            : 'relative flex min-h-16 cursor-pointer items-center gap-3 rounded-gj-md border border-gj-border bg-white p-3 text-left text-gj-text transition hover:border-gj-primary-500 hover:bg-gj-surface-subtle'
+                        }
+                      >
+                        <input
+                          className="peer sr-only"
+                          type="radio"
+                          name="receiver"
+                          aria-label={`${colleague.displayName}${
+                            colleague.teamName ? ` ${colleague.teamName}` : ''
+                          }`}
+                          value={colleague.id}
+                          checked={selected}
+                          disabled={fieldsLocked}
+                          onChange={() => {
+                            setSelectedColleague(colleague);
+                            updateDraft('receiverId', colleague.id);
+                          }}
+                        />
+                        <span className="pointer-events-none absolute inset-0 rounded-gj-md peer-focus-visible:outline-3 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-gj-focus" />
+                        <Avatar
+                          name={colleague.displayName}
+                          src={colleague.avatarUrl}
+                          size="medium"
+                        />
+                        <span className="min-w-0">
+                          <strong className="block truncate text-gj-sm">
+                            {colleague.displayName}
+                          </strong>
+                          <span className="block truncate text-gj-xs text-gj-text-secondary">
+                            {colleague.teamName ?? 'Good Job colleague'}
+                          </span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
               {errors.receiverId && (
-                <p id="receiver-error" className="field-error">
+                <p
+                  id="receiver-error"
+                  className="m-0 text-gj-sm font-semibold text-gj-danger"
+                >
                   {errors.receiverId}
                 </p>
               )}
 
-              <label htmlFor="core-value">Core Value</label>
-              <select
-                id="core-value"
-                value={draft.coreValueId}
-                disabled={
-                  fieldsLocked ||
-                  coreValuesQuery.isPending ||
-                  coreValuesQuery.isError
-                }
-                aria-invalid={Boolean(errors.coreValueId)}
-                aria-describedby={
-                  errors.coreValueId
-                    ? 'core-value-error'
-                    : coreValuesQuery.isPending
-                      ? 'core-values-loading'
-                      : undefined
-                }
-                onChange={(event) =>
-                  updateDraft('coreValueId', event.target.value)
-                }
-              >
-                <option value="">Choose a Core Value</option>
-                {coreValuesQuery.data?.items.map((coreValue) => (
-                  <option key={coreValue.id} value={coreValue.id}>
-                    {coreValue.name}
-                  </option>
-                ))}
-              </select>
+              <div className="grid gap-3">
+                <span className="text-gj-sm font-bold text-gj-brand-700">
+                  Core Value
+                </span>
+                <div
+                  className="grid grid-cols-2 gap-3 rounded-gj-sm max-mobile:grid-cols-1 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-gj-focus"
+                  role="radiogroup"
+                  aria-label="Choose a Core Value"
+                  aria-invalid={Boolean(errors.coreValueId)}
+                  aria-describedby={
+                    errors.coreValueId
+                      ? 'core-value-error'
+                      : coreValuesQuery.isPending
+                        ? 'core-values-loading'
+                        : undefined
+                  }
+                  id="core-value-group"
+                  tabIndex={-1}
+                >
+                  {coreValuesQuery.data?.items.map((coreValue) => {
+                    const selected = draft.coreValueId === coreValue.id;
+                    return (
+                      <label
+                        key={coreValue.id}
+                        className={
+                          selected
+                            ? 'relative cursor-pointer rounded-gj-md border-2 border-gj-primary-600 bg-gj-primary-100 p-4 text-left text-gj-text'
+                            : 'relative cursor-pointer rounded-gj-md border border-gj-border bg-white p-4 text-left text-gj-text transition hover:border-gj-primary-500 hover:bg-gj-surface-subtle'
+                        }
+                      >
+                        <input
+                          className="peer sr-only"
+                          type="radio"
+                          name="coreValue"
+                          aria-label={coreValue.name}
+                          value={coreValue.id}
+                          checked={selected}
+                          disabled={fieldsLocked}
+                          onChange={() =>
+                            updateDraft('coreValueId', coreValue.id)
+                          }
+                        />
+                        <span className="pointer-events-none absolute inset-0 rounded-gj-md peer-focus-visible:outline-3 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-gj-focus" />
+                        <strong className="block text-gj-sm text-gj-brand-700">
+                          {coreValue.name}
+                        </strong>
+                        {coreValue.description && (
+                          <span className="mt-1 block text-gj-xs text-gj-text-secondary">
+                            {coreValue.description}
+                          </span>
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
               {coreValuesQuery.isPending ? (
-                <p id="core-values-loading" role="status">
+                <p
+                  className="m-0 text-gj-sm text-gj-text-secondary"
+                  id="core-values-loading"
+                  role="status"
+                >
                   Loading Core Values…
                 </p>
               ) : coreValuesQuery.isError ? (
-                <div role="alert">
-                  Core Values are temporarily unavailable.
-                  <button
-                    type="button"
-                    onClick={() => void coreValuesQuery.refetch()}
-                  >
-                    Retry Core Values
-                  </button>
-                </div>
+                <ErrorState
+                  title="Core Values are temporarily unavailable"
+                  actionLabel="Retry Core Values"
+                  onAction={() => void coreValuesQuery.refetch()}
+                />
               ) : coreValuesQuery.data?.items.length === 0 ? (
-                <p role="status">No active Core Values.</p>
+                <p
+                  className="m-0 rounded-gj-md bg-gj-surface-subtle p-4 text-gj-sm text-gj-text-secondary"
+                  role="status"
+                >
+                  No active Core Values.
+                </p>
               ) : null}
               {errors.coreValueId && (
-                <p id="core-value-error" className="field-error">
+                <p
+                  id="core-value-error"
+                  className="m-0 text-gj-sm font-semibold text-gj-danger"
+                >
                   {errors.coreValueId}
                 </p>
               )}
 
-              <label htmlFor="points">Giving Points</label>
-              <input
-                id="points"
-                type="number"
-                min="10"
-                max="50"
-                step="10"
-                value={draft.points}
-                disabled={fieldsLocked}
+              <fieldset
+                className="m-0 grid gap-3 rounded-gj-sm border-0 p-0 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-gj-focus"
                 aria-invalid={Boolean(errors.points)}
                 aria-describedby={errors.points ? 'points-error' : undefined}
-                onChange={(event) => updateDraft('points', event.target.value)}
-              />
+                id="points-group"
+                tabIndex={-1}
+              >
+                <legend className="text-gj-sm font-bold text-gj-brand-700">
+                  Giving Points
+                </legend>
+                <div className="grid grid-cols-5 gap-2 max-mobile:grid-cols-3">
+                  {pointOptions.map((points) => (
+                    <label
+                      key={points}
+                      className={
+                        draft.points === String(points)
+                          ? 'relative grid min-h-11 cursor-pointer place-items-center rounded-full border-2 border-gj-primary-600 bg-gj-primary-600 px-3 font-bold text-white'
+                          : 'relative grid min-h-11 cursor-pointer place-items-center rounded-full border border-gj-control-border bg-white px-3 font-bold text-gj-brand-700 hover:border-gj-primary-600'
+                      }
+                    >
+                      <input
+                        className="peer sr-only"
+                        type="radio"
+                        name="points"
+                        value={points}
+                        checked={draft.points === String(points)}
+                        disabled={fieldsLocked}
+                        onChange={() => updateDraft('points', String(points))}
+                      />
+                      <span className="pointer-events-none absolute inset-0 rounded-full peer-focus-visible:outline-3 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-gj-focus" />
+                      <span>{points}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
               {errors.points && (
-                <p id="points-error" className="field-error">
+                <p
+                  id="points-error"
+                  className="m-0 text-gj-sm font-semibold text-gj-danger"
+                >
                   {errors.points}
                 </p>
               )}
 
-              <label htmlFor="description">Why are you recognizing them?</label>
-              <textarea
+              <Field
                 id="description"
-                value={draft.description}
-                disabled={fieldsLocked}
-                aria-invalid={Boolean(errors.description)}
-                aria-describedby={
-                  errors.description ? 'description-error' : undefined
-                }
-                onChange={(event) =>
-                  updateDraft('description', event.target.value)
-                }
-              />
-              {errors.description && (
-                <p id="description-error" className="field-error">
-                  {errors.description}
-                </p>
-              )}
+                label="Why are you recognizing them?"
+                hint="Describe the contribution and the difference it made."
+                {...(errors.description ? { error: errors.description } : {})}
+              >
+                <TextArea
+                  id="description"
+                  value={draft.description}
+                  disabled={fieldsLocked}
+                  onChange={(event) =>
+                    updateDraft('description', event.target.value)
+                  }
+                  placeholder="Share a specific, meaningful contribution…"
+                />
+              </Field>
 
               <AttachmentPicker
                 attachmentIds={draft.attachmentIds}
@@ -550,10 +703,12 @@ export function GiveKudoComposer({
                 }
               />
 
-              <button
+              <Button
                 type="submit"
+                pending={mutation.isPending}
+                pendingLabel="Sending Kudo…"
+                className="w-full"
                 disabled={
-                  mutation.isPending ||
                   exhausted ||
                   budgetQuery.isPending ||
                   budgetQuery.isError ||
@@ -562,12 +717,8 @@ export function GiveKudoComposer({
                   coreValuesQuery.data?.items.length === 0
                 }
               >
-                {mutation.isPending
-                  ? 'Sending Kudo…'
-                  : recoveryCommand
-                    ? 'Retry safely'
-                    : 'Give Kudo'}
-              </button>
+                {recoveryCommand ? 'Retry safely' : 'Give Kudo'}
+              </Button>
             </form>
           </>
         )}

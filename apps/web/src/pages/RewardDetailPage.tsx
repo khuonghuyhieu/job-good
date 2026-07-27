@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import { ApiClientError } from '../api/error-adapter.js';
+import { RewardMedia } from '../entities/reward/RewardMedia.js';
 import {
   getRewardDetail,
   redeemReward,
@@ -10,10 +11,20 @@ import {
   rewardDetailQueryKey,
   rewardsQueryKey,
 } from '../features/rewards/api.js';
+import { RedemptionConfirmation } from '../features/rewards/RedemptionConfirmation.js';
 import {
   walletLedgerQueryKey,
   walletOverviewQueryKey,
 } from '../features/wallet/api.js';
+import {
+  Badge,
+  Button,
+  Card,
+  ErrorState,
+  Eyebrow,
+  Heading,
+  Skeleton,
+} from '../shared/ui/index.js';
 
 type Attempt = { rewardId: string; key: string };
 
@@ -29,8 +40,6 @@ export function RewardDetailPage() {
   const { rewardId = '' } = useParams();
   const queryClient = useQueryClient();
   const submitting = useRef(false);
-  const confirmButton = useRef<HTMLButtonElement>(null);
-  const dialog = useRef<HTMLDivElement>(null);
   const [confirming, setConfirming] = useState(false);
   const [recovery, setRecovery] = useState<Attempt | null>(null);
   const detail = useQuery({
@@ -59,6 +68,7 @@ export function RewardDetailPage() {
         (error.code === 'INSUFFICIENT_REWARD_POINTS' ||
           error.code === 'REWARD_UNAVAILABLE')
       ) {
+        setConfirming(false);
         await detail.refetch();
       }
     },
@@ -73,103 +83,118 @@ export function RewardDetailPage() {
     redemption.mutate(attempt ?? { rewardId, key: crypto.randomUUID() });
   };
 
-  useEffect(() => {
-    if (!confirming) return;
-    confirmButton.current?.focus();
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !redemption.isPending && !recovery) {
-        setConfirming(false);
-      }
-      if (event.key !== 'Tab' || !dialog.current) return;
-      const controls = Array.from(
-        dialog.current.querySelectorAll<HTMLElement>(
-          'button:not(:disabled), [href], input:not(:disabled)',
-        ),
-      );
-      const first = controls.at(0);
-      const last = controls.at(-1);
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last?.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first?.focus();
-      }
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [confirming, recovery, redemption.isPending]);
-
-  if (detail.isPending) return <p role="status">Loading reward…</p>;
+  if (detail.isPending)
+    return (
+      <div
+        className="mx-auto grid w-full max-w-5xl grid-cols-2 gap-6 max-mobile:grid-cols-1"
+        role="status"
+        aria-label="Loading reward"
+      >
+        <Skeleton className="min-h-96 rounded-gj-lg" />
+        <Skeleton className="min-h-96 rounded-gj-lg" />
+        <span className="sr-only">Loading reward…</span>
+      </div>
+    );
   if (detail.isError || !detail.data) {
     return (
-      <div role="alert">
-        <p>This reward is unavailable.</p>
-        <button type="button" onClick={() => void detail.refetch()}>
-          Retry reward
-        </button>
+      <div className="mx-auto w-full max-w-3xl">
+        <ErrorState
+          title="This reward is unavailable"
+          description="No Reward Points have been spent."
+          actionLabel="Retry reward"
+          onAction={() => void detail.refetch()}
+        />
       </div>
     );
   }
   const reward = detail.data;
   return (
-    <section className="reward-detail">
-      <Link to="/rewards">Back to catalog</Link>
-      <h1>{reward.name}</h1>
-      <p>{reward.description}</p>
-      <p>
-        Cost: <strong>{reward.costPoints} Reward Points</strong>
-      </p>
-      <p>Current balance: {reward.eligibility.currentBalance}</p>
-      {!reward.eligibility.eligible ? (
-        <p role="status">You need more Reward Points for this reward.</p>
-      ) : (
-        <button type="button" onClick={() => setConfirming(true)}>
-          Redeem reward
-        </button>
-      )}
-      {confirming && !redemption.data && (
-        <div
-          ref={dialog}
-          className="confirmation-dialog"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="redeem-title"
+    <main className="reward-detail mx-auto grid w-full max-w-5xl gap-5">
+      <Link
+        className="inline-flex min-h-11 w-fit items-center rounded-gj-sm px-3 font-bold text-gj-primary-700 no-underline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-gj-focus"
+        to="/rewards"
+      >
+        ← Back to catalog
+      </Link>
+      <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)] gap-6 max-tablet:grid-cols-1">
+        <Card as="section" className="overflow-hidden">
+          <div className="mb-6">
+            <RewardMedia imageUrl={reward.imageUrl} size="detail" />
+          </div>
+          <Eyebrow>Reward detail</Eyebrow>
+          <Heading level={1} className="mt-2">
+            {reward.name}
+          </Heading>
+          <p className="mt-4 mb-0 leading-7 text-gj-text-secondary">
+            {reward.description ?? 'More details coming soon.'}
+          </p>
+        </Card>
+        <Card
+          as="section"
+          className="grid content-start gap-5"
+          aria-label="Redemption summary"
         >
-          <h2 id="redeem-title">Confirm redemption</h2>
-          <p>
-            Redeem {reward.name} for {reward.costPoints} Reward Points?
-          </p>
-          <p>
-            Expected balance:{' '}
-            {reward.eligibility.currentBalance - reward.costPoints}. The server
-            will confirm your latest balance.
-          </p>
-          <button
-            ref={confirmButton}
-            type="button"
-            disabled={redemption.isPending}
-            onClick={() => submit(recovery ?? undefined)}
+          <Badge tone="warning" className="w-fit">
+            {reward.costPoints} Reward Points
+          </Badge>
+          <div>
+            <span className="text-gj-sm text-gj-text-secondary">
+              Current Reward Balance
+            </span>
+            <strong className="mt-1 block text-gj-3xl text-gj-brand-700">
+              {reward.eligibility.currentBalance}
+            </strong>
+          </div>
+          {!reward.eligibility.eligible ? (
+            <p
+              className="m-0 rounded-gj-sm bg-gj-warning-subtle p-4 text-gj-sm font-semibold text-gj-warning"
+              role="status"
+            >
+              You need more Reward Points for this reward.
+            </p>
+          ) : (
+            <Button
+              type="button"
+              onClick={() => {
+                redemption.reset();
+                setConfirming(true);
+              }}
+            >
+              Redeem reward
+            </Button>
+          )}
+          <Link
+            className="min-h-11 content-center text-center font-bold text-gj-primary-700"
+            to="/wallet"
           >
-            {redemption.isPending
-              ? recovery
-                ? 'Checking redemption…'
-                : 'Redeeming…'
-              : recovery
-                ? 'Check redemption result'
-                : 'Confirm redemption'}
-          </button>
-          <button
-            type="button"
-            disabled={redemption.isPending || recovery !== null}
-            onClick={() => setConfirming(false)}
-          >
-            Cancel
-          </button>
-        </div>
-      )}
-      {redemption.isError && (
-        <div role="alert">
+            View Wallet and audit history
+          </Link>
+        </Card>
+      </div>
+      <RedemptionConfirmation
+        open={confirming && !redemption.data}
+        rewardName={reward.name}
+        costPoints={reward.costPoints}
+        currentBalance={reward.eligibility.currentBalance}
+        pending={redemption.isPending}
+        checking={recovery !== null}
+        errorMessage={
+          redemption.isError && recovery
+            ? 'The result is still unknown. Check again using the same safe request.'
+            : undefined
+        }
+        onClose={() => setConfirming(false)}
+        onConfirm={() => submit(recovery ?? undefined)}
+      />
+      {redemption.isError && !recovery && (
+        <div
+          className={
+            recovery
+              ? 'rounded-gj-md border border-gj-warning/20 bg-gj-warning-subtle p-4 text-gj-sm text-gj-warning'
+              : 'rounded-gj-md border border-gj-danger/20 bg-gj-danger-subtle p-4 text-gj-sm text-gj-danger'
+          }
+          role="alert"
+        >
           {recovery
             ? 'The result is unknown. Check using the same safe request before trying a new redemption.'
             : redemption.error instanceof ApiClientError &&
@@ -179,23 +204,35 @@ export function RewardDetailPage() {
         </div>
       )}
       {recovery && !confirming && (
-        <section aria-labelledby="redemption-recovery-title">
-          <h2 id="redemption-recovery-title">Check pending redemption</h2>
-          <p>
+        <Card as="section" aria-labelledby="redemption-recovery-title">
+          <Heading id="redemption-recovery-title" level={2}>
+            Check pending redemption
+          </Heading>
+          <p className="text-gj-text-secondary">
             The previous result is unknown. Check it before starting another
             redemption.
           </p>
-          <button type="button" onClick={() => setConfirming(true)}>
+          <Button type="button" onClick={() => setConfirming(true)}>
             Check redemption result
-          </button>
-        </section>
+          </Button>
+        </Card>
       )}
       {redemption.data && (
-        <div role="status">
-          Redemption committed. Balance: {redemption.data.balanceAfter} Reward
-          Points.
-        </div>
+        <Card
+          as="section"
+          className="border-gj-success/20 bg-gj-success-subtle text-gj-success"
+          role="status"
+        >
+          <Heading level={2}>
+            Redemption committed. Balance: {redemption.data.balanceAfter} Reward
+            Points.
+          </Heading>
+          <p className="mb-0">
+            Server-confirmed balance: {redemption.data.balanceAfter} Reward
+            Points.
+          </p>
+        </Card>
       )}
-    </section>
+    </main>
   );
 }

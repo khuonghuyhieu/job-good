@@ -9,12 +9,13 @@ import {
   snapshotReactionCache,
   updateReactionCache,
 } from './cache.js';
+import { Chip } from '../../shared/ui/index.js';
 
-const emoji: Array<{ code: SupportedEmoji; label: string }> = [
-  { code: 'celebrate', label: 'Celebrate' },
-  { code: 'heart', label: 'Heart' },
-  { code: 'clap', label: 'Clap' },
-  { code: 'fire', label: 'Fire' },
+const emoji: Array<{ code: SupportedEmoji; label: string; glyph: string }> = [
+  { code: 'celebrate', label: 'Celebrate', glyph: '🎉' },
+  { code: 'heart', label: 'Heart', glyph: '♥' },
+  { code: 'clap', label: 'Clap', glyph: '👏' },
+  { code: 'fire', label: 'Fire', glyph: '🔥' },
 ];
 
 function optimisticState(
@@ -85,22 +86,32 @@ export function ReactionBar({
   });
 
   return (
-    <div className="reaction-bar" aria-label="Kudo reactions">
-      {emoji.map(({ code, label }) => (
-        <button
+    <div
+      className="flex flex-wrap items-center gap-2 border-t border-gj-border pt-4"
+      aria-label="Kudo reactions"
+    >
+      {emoji.map(({ code, label, glyph }) => (
+        <Chip
           key={code}
           type="button"
-          aria-pressed={visible.currentUserReaction === code}
+          selected={visible.currentUserReaction === code}
+          aria-label={`${label} ${visible.counts[code]}`}
           disabled={mutation.isPending}
           onClick={() =>
             mutation.mutate(visible.currentUserReaction === code ? null : code)
           }
         >
-          {label} {visible.counts[code]}
-        </button>
+          <span aria-hidden="true">{glyph}</span>
+          <span>{visible.counts[code]}</span>
+        </Chip>
       ))}
       {mutation.isError && (
-        <span role="alert">Reaction failed and was restored.</span>
+        <span
+          className="w-full text-gj-xs font-semibold text-gj-danger"
+          role="alert"
+        >
+          Reaction failed and was restored.
+        </span>
       )}
     </div>
   );
